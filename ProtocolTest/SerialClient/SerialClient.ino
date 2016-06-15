@@ -1,22 +1,22 @@
-//HOW TO OPERATE
-//  Make TimerClass objects for each thing that needs periodic service
-//  pass the interval of the period in ticks
+//**********************************************************************//
+//  BEERWARE LICENSE
 //
-//  Set maxInterval to rollover rate
-//  Set maxTimer to the max foreseen interval of any timer.
-//  maxTimer + maxInterval = max countable value.
-
-//NOTICE:
-//  The timerModule32 only works on teensy / fast processors.  It works the same
-//  but keeps track of everything in us counts.
-
-
-//Not used by this sketch but dependant on one 
-#include "Wire.h"
+//  This code is free for any use provided that if you meet the author
+//  in person, you buy them a beer.
+//
+//  This license block is BeerWare itself.
+//
+//  Written by:  Marshall Taylor
+//  Created:  March 14, 2016
+//
+//**********************************************************************//
+#include "HOS_char.h"
 
 //Globals
 uint32_t maxTimer = 60000000;
 uint32_t maxInterval = 2000000;
+
+uint32_t packetNumber = 0;
 
 uint16_t lastX1;
 uint16_t lastY1;
@@ -44,6 +44,7 @@ IntervalTimer myTimer; //Interrupt for Teensy
 
 //**Current list of timers********************//
 TimerClass32 debugTimer( 1000000 ); //1 second
+TimerClass32 serialSendTimer( 1000000 ); //1 second
 
 //Note on TimerClass-
 //Change with usTimerA.setInterval( <the new interval> );
@@ -59,9 +60,26 @@ uint32_t usTicks = 0;
 //    of the interrupt
 
 uint8_t usTicksLocked = 1; //start locked out
+
+//**Packet handling stuff*********************//
+#define PACKET_LENGTH 24
+#define START_SYMBOL '~'
+
+char lastchar;
+char rxPacket[PACKET_LENGTH];
+char txPacket[PACKET_LENGTH];
+char lastPacket[PACKET_LENGTH];
+char packetPending = 0;
+
+char packet_ptr;
+
+
+
 void setup()
 {
   Serial.begin(115200);
+  
+  Serial1.begin(9600);
   
   pinMode(LEDPIN, OUTPUT);
   pinMode(INPUTPINB1, INPUT_PULLUP);
@@ -70,6 +88,32 @@ void setup()
   // initialize IntervalTimer
   myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
 
+  //Build the empty packet
+  txPacket[0] = '~';
+  txPacket[1] = ' ';
+  txPacket[2] = ' ';
+  txPacket[3] = ' ';
+  txPacket[4] = ' ';
+  txPacket[5] = ' ';
+  txPacket[6] = ' ';
+  txPacket[7] = ' ';
+  txPacket[8] = ' ';
+  txPacket[9] = ' ';
+  txPacket[10] = ' ';
+  txPacket[11] = ' ';
+  txPacket[12] = ' ';
+  txPacket[13] = ' ';
+  txPacket[14] = ' ';
+  txPacket[15] = ' ';
+  txPacket[16] = ' ';
+  txPacket[17] = ' ';
+  txPacket[18] = ' ';
+  txPacket[19] = ' ';
+  txPacket[20] = ' ';
+  txPacket[21] = ' ';
+  txPacket[22] = 0x0D;
+  txPacket[23] = 0x0A;
+  
 }
 
 void loop()
@@ -80,6 +124,7 @@ void loop()
 		//**Copy to make a new timer******************//  
 		//msTimerA.update(usTicks);
 		debugTimer.update(usTicks);
+		serialSendTimer.update(usTicks);
 
 		//Done?  Lock it back up
 		usTicksLocked = 1;
@@ -96,10 +141,10 @@ void loop()
 		//User code
 		digitalWrite( LEDPIN, digitalRead( LEDPIN ) ^ 0x01 );
 		
-		lastX1 = (analogRead(INPUTPINX1)) >> 6;
-		lastY1 = (0x3FF - analogRead(INPUTPINY1)) >> 6;
-		lastX2 = (analogRead(INPUTPINX2)) >> 6;
-		lastY2 = (0x3FF - analogRead(INPUTPINY2)) >> 6;
+		lastX1 = (analogRead(INPUTPINX1)) >> 2;
+		lastY1 = (0x3FF - analogRead(INPUTPINY1)) >> 2;
+		lastX2 = (analogRead(INPUTPINX2)) >> 2;
+		lastY2 = (0x3FF - analogRead(INPUTPINY2)) >> 2;
 		lastB1 = 0x1 ^ digitalRead(INPUTPINB1);
 		lastB2 = 0x1 ^ digitalRead(INPUTPINB2);
 
@@ -123,7 +168,52 @@ void loop()
 		Serial.println("");
 		Serial.println("");
 	}
+	if(serialSendTimer.flagStatus() == PENDING)
+	{
+	//Check for new data
+		uint8_t tempStatus = 0;
+		tempStatus |= 1; //equate tempStatus for new data, here forces on
 
+		// If new, ship it!
+		if( tempStatus )
+		{
+			//hex2char((packetNumber & 0xF000) >> 12);
+			//hex2char((packetNumber & 0x0F00) >> 8);
+			//hex2char((packetNumber & 0x00F0) >> 4);
+			//hex2char(packetNumber & 0x000F);
+			
+			txPacket[0] = '~';
+			txPacket[1] = hex2char(packetNumber & 0x000F);
+			txPacket[2] = hex2char(0);
+			txPacket[3] = hex2char((lastX1 & 0x00F0) >> 4);
+			txPacket[4] = hex2char(lastX1 & 0x000F);
+			txPacket[5] = hex2char((lastY1 & 0x00F0) >> 4);
+			txPacket[6] = hex2char(lastY1 & 0x000F);
+			txPacket[7] = hex2char((lastX2 & 0x00F0) >> 4);
+			txPacket[8] = hex2char(lastX2 & 0x000F);
+			txPacket[9] = hex2char((lastY2 & 0x00F0) >> 4);
+			txPacket[10] = hex2char(lastY2 & 0x000F);
+			txPacket[11] = hex2char(lastB1 & 0x01);
+			txPacket[12] = hex2char(lastB2 & 0x01);
+			txPacket[13] = ' ';
+			txPacket[14] = ' ';
+			txPacket[15] = ' ';
+			txPacket[16] = ' ';
+			txPacket[17] = ' ';
+			txPacket[18] = '.';
+			txPacket[19] = '.';
+			txPacket[20] = '.';
+			txPacket[21] = '.';
+			txPacket[22] = 0x0D;
+			txPacket[23] = 0x0A;
+			for(int i = 0; i < PACKET_LENGTH; i++)
+			{
+				Serial1.write(txPacket[i]);
+			}
+			Serial1.write(0x0A);
+			packetNumber++;
+		}
+	}
 }
 
 void serviceUS(void)
