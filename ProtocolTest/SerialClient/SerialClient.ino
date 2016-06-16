@@ -44,7 +44,7 @@ IntervalTimer myTimer; //Interrupt for Teensy
 
 //**Current list of timers********************//
 TimerClass32 debugTimer( 1000000 ); //1 second
-TimerClass32 serialSendTimer( 1000000 ); //1 second
+TimerClass32 serialSendTimer( 10000 ); //1 second
 
 //Note on TimerClass-
 //Change with usTimerA.setInterval( <the new interval> );
@@ -141,13 +141,6 @@ void loop()
 		//User code
 		digitalWrite( LEDPIN, digitalRead( LEDPIN ) ^ 0x01 );
 		
-		lastX1 = (analogRead(INPUTPINX1)) >> 2;
-		lastY1 = (0x3FF - analogRead(INPUTPINY1)) >> 2;
-		lastX2 = (analogRead(INPUTPINX2)) >> 2;
-		lastY2 = (0x3FF - analogRead(INPUTPINY2)) >> 2;
-		lastB1 = 0x1 ^ digitalRead(INPUTPINB1);
-		lastB2 = 0x1 ^ digitalRead(INPUTPINB2);
-
 		Serial.print("Reading lastX1: 0x");
 		Serial.print(lastX1, HEX);
 		Serial.println("");
@@ -174,6 +167,13 @@ void loop()
 		uint8_t tempStatus = 0;
 		tempStatus |= 1; //equate tempStatus for new data, here forces on
 
+		lastX1 = (analogRead(INPUTPINX1)) >> 2;
+		lastY1 = (0x3FF - analogRead(INPUTPINY1)) >> 2;
+		lastX2 = (analogRead(INPUTPINX2)) >> 2;
+		lastY2 = (0x3FF - analogRead(INPUTPINY2)) >> 2;
+		lastB1 = 0x1 ^ digitalRead(INPUTPINB1);
+		lastB2 = 0x1 ^ digitalRead(INPUTPINB2);
+		
 		// If new, ship it!
 		if( tempStatus )
 		{
