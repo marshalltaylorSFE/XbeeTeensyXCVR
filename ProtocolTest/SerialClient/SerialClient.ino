@@ -11,6 +11,7 @@
 //
 //**********************************************************************//
 #include "HOS_char.h"
+#include <math.h>
 
 //Globals
 uint32_t maxTimer = 60000000;
@@ -22,7 +23,8 @@ uint16_t lastX1;
 uint16_t lastY1;
 uint16_t lastX2;
 uint16_t lastY2;
-
+float lastT1;
+float lastR1;
 uint8_t lastB1;
 uint8_t lastB2;
 
@@ -43,7 +45,7 @@ IntervalTimer myTimer; //Interrupt for Teensy
 //TimerClass32 usTimerA( 20000 ); //20 ms
 
 //**Current list of timers********************//
-TimerClass32 debugTimer( 1000000 ); //1 second
+TimerClass32 debugTimer( 100000 ); //1 second
 TimerClass32 serialSendTimer( 10000 ); //1 second
 
 //Note on TimerClass-
@@ -72,6 +74,8 @@ char lastPacket[PACKET_LENGTH];
 char packetPending = 0;
 
 char packet_ptr;
+
+char table[64][64];
 
 
 
@@ -113,6 +117,15 @@ void setup()
   txPacket[21] = ' ';
   txPacket[22] = 0x0D;
   txPacket[23] = 0x0A;
+  
+  
+  for( int i = 0; i < 32; i++ )
+  {
+	  for( int j = 0; j < 32; j++ )
+	  {
+		  table[i][j] = '0';
+	  }
+  }
   
 }
 
@@ -160,6 +173,30 @@ void loop()
 		Serial.print(lastB2, HEX);
 		Serial.println("");
 		Serial.println("");
+		
+		
+		
+		//for( int j = 31; j >= 0; j-- )
+		//{
+		//	for( int i = 0; i < 32; i++ )
+		//	{
+		//		Serial.print(table[i][j]);
+		//	}
+		//	Serial.print("\n");
+		//}
+		
+		Serial.print("lastR1: ");
+		Serial.print(lastR1);
+		Serial.println("");
+		Serial.print("lastT1: ");
+		Serial.print(lastT1);
+		Serial.println("");		
+
+		Serial.print("lastDeg: ");
+		Serial.print( (lastT1 / 6.25) * 360 );
+		Serial.println("");		
+
+		
 	}
 	if(serialSendTimer.flagStatus() == PENDING)
 	{
@@ -173,6 +210,23 @@ void loop()
 		lastY2 = (0x3FF - analogRead(INPUTPINY2)) >> 2;
 		lastB1 = 0x1 ^ digitalRead(INPUTPINB1);
 		lastB2 = 0x1 ^ digitalRead(INPUTPINB2);
+		int16_t lastX1i = (int16_t)lastX1 - 0x7D;
+		int16_t lastY1i = (int16_t)lastY1 - 0x82;
+		lastT1 = atan((float)lastY1i / (float)lastX1i);
+		lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
+		if((lastX1i < 0)&&(lastY1i > 0))
+		{
+			lastT1 = 3.1415 + lastT1;
+		}
+		else if((lastX1i < 0)&&(lastY1i <= 0))
+		{
+			lastT1 = 3.1415 + lastT1;
+		}
+		else if((lastX1i >= 0)&&(lastY1i < 0))
+		{
+			lastT1 = 3.1415 + 3.1415 + lastT1;
+		}
+		table[lastX1i >> 3][lastY1i >> 3] = '1';
 		
 		// If new, ship it!
 		if( tempStatus )
