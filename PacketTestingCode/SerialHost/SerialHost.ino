@@ -145,7 +145,7 @@ void loop()
 			int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
 			int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
 			if(lastX1i == 0) lastX1i = 1;
-			lastT1 = atan((float)lastY1i / (float)lastX1i);
+			lastT1 = sin((float)lastY1i) / cos((float)lastX1i);
 			lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
 			if((lastX1i < 0)&&(lastY1i > 0))
 			{
@@ -163,21 +163,8 @@ void loop()
 			//  Right stick
 			int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
 			int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
-			if(lastX2i == 0) lastX2i = 1;
-			lastT2 = atan((float)lastY2i / (float)lastX2i);
-			lastR2 = sqrt(pow(((float)lastX2i/0x90), 2) + pow(((float)lastY2i/0x90), 2));
-			if((lastX2i < 0)&&(lastY2i > 0))
-			{
-				lastT2 = 3.1415 + lastT2;
-			}
-			else if((lastX2i < 0)&&(lastY2i <= 0))
-			{
-				lastT2 = 3.1415 + lastT2;
-			}
-			else if((lastX2i >= 0)&&(lastY2i < 0))
-			{
-				lastT2 = 3.1415 + 3.1415 + lastT2;
-			}
+
+			cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
 	
 		}
 	}
@@ -247,4 +234,33 @@ void loop()
 		usTicks = usTickInput;
 		usTicksMutex = 0;  //unlock
 	}
+}
+
+void cart2polar(float inputx, float inputy, float &outputr, float &outputt)
+{
+	//Protect ranges
+	if(inputx > 1) inputx = 1;
+	if(inputx < -1) inputx = -1;
+	if(inputy > 1) inputy = 1;
+	if(inputy < -1) inputy = -1;
+	
+	//Find radius
+	outputr = sqrt(pow(inputx, 2) + pow(inputy, 2));
+	
+	//Find angle
+	if(inputx == 0) inputx = 0.01;
+	outputt = atan(inputy / inputx);
+	//lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
+	//if((lastX1i < 0)&&(lastY1i > 0))
+	//{
+	//	lastT1 = 3.1415 + lastT1;
+	//}
+	//else if((lastX1i < 0)&&(lastY1i <= 0))
+	//{
+	//	lastT1 = 3.1415 + lastT1;
+	//}
+	//else if((lastX1i >= 0)&&(lastY1i < 0))
+	//{
+	//	lastT1 = 3.1415 + 3.1415 + lastT1;
+	//}
 }
