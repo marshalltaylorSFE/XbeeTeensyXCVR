@@ -12,6 +12,7 @@
 //**********************************************************************//
 #include <math.h>
 #include "HOS_char.h"
+#include "ArduinoPSoCMotorDriverAPI.h"
 
 //**Timers and stuff**************************//
 #include "timerModule32.h"
@@ -59,6 +60,8 @@ float lastT1;
 float lastR2;
 float lastT2;
 
+PSoCMD myMotorDriver;
+
 void setup()
 {
 	Serial.begin(9600); // Initialize Serial Monitor USB
@@ -75,7 +78,14 @@ void setup()
 	// initialize IntervalTimer
 	myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
 
-	
+	//Start the motor driver
+	myMotorDriver.settings.commInterface = I2C_MODE;
+	myMotorDriver.settings.I2CAddress = 0x58;
+	//myMotorDriver.settings.chipSelectPin = 10;
+	//myMotorDriver.settings.invertA = 1;
+	//myMotorDriver.settings.invertB = 1;
+	Serial.println(myMotorDriver.begin(), HEX);
+
 }
 
 void loop()
@@ -149,28 +159,25 @@ void loop()
 			//  Left stick
 			int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
 			int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
-			if(lastX1i == 0) lastX1i = 1;
-			lastT1 = sin((float)lastY1i) / cos((float)lastX1i);
-			lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
-			if((lastX1i < 0)&&(lastY1i > 0))
-			{
-				lastT1 = 3.1415 + lastT1;
-			}
-			else if((lastX1i < 0)&&(lastY1i <= 0))
-			{
-				lastT1 = 3.1415 + lastT1;
-			}
-			else if((lastX1i >= 0)&&(lastY1i < 0))
-			{
-				lastT1 = 3.1415 + 3.1415 + lastT1;
-			}
+			cart2polar((float)lastX1i / 0x90,(float)lastY1i / 0x90,lastR1,lastT1);
 			
 			//  Right stick
 			int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
 			int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
-
 			cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
-	
+			
+			if((lastT1>(0.4))&&(lastT1<(3.14 - 0.4)))
+			{
+				myMotorDriver.setDrive(0,1,lastR1 * 255);
+			}
+			else if((lastT1>(3.14 + 0.4))&&(lastT1<(6.28 - 0.4)))
+			{
+				myMotorDriver.setDrive(0,0,lastR1 * 255);
+			}
+			else
+			{
+				myMotorDriver.setDrive(0,0,0);
+			}
 		}
 	}
 
@@ -269,21 +276,14 @@ void cart2polar(float inputx, float inputy, float &outputr, float &outputt)
 	
 	//Find radius
 	outputr = sqrt(pow(inputx, 2) + pow(inputy, 2));
+	if(outputr > 1) outputr = 1;
 	
 	//Find angle
 	if(inputx == 0) inputx = 0.01;
 	outputt = atan(inputy / inputx);
-	//lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
-	//if((lastX1i < 0)&&(lastY1i > 0))
-	//{
-	//	lastT1 = 3.1415 + lastT1;
-	//}
-	//else if((lastX1i < 0)&&(lastY1i <= 0))
-	//{
-	//	lastT1 = 3.1415 + lastT1;
-	//}
-	//else if((lastX1i >= 0)&&(lastY1i < 0))
-	//{
-	//	lastT1 = 3.1415 + 3.1415 + lastT1;
-	//}
+	//If either one is negative add pi
+	//if y is between 0 and 1, and x is > 0 add another pi
+	if((inputx < 0)||(inputy < 0)) outputt += 3.14159;
+	if((inputy < 0)&&(inputy > -1)&&(inputx>0)) outputt += 3.14159;
+
 }
