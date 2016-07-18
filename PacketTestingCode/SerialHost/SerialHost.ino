@@ -140,32 +140,18 @@ void loop()
 			lastY2 = char2hex(packet[10]) | (char2hex(packet[9]) << 4);
 			lastB1 = char2hex(packet[11]) & 0x01;
 			lastB2 = char2hex(packet[12]) & 0x01;
+			
 			//Calculate polar coordinates 			
 			//  Left stick
 			int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
 			int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
-			if(lastX1i == 0) lastX1i = 1;
-			lastT1 = sin((float)lastY1i) / cos((float)lastX1i);
-			lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
-			if((lastX1i < 0)&&(lastY1i > 0))
-			{
-				lastT1 = 3.1415 + lastT1;
-			}
-			else if((lastX1i < 0)&&(lastY1i <= 0))
-			{
-				lastT1 = 3.1415 + lastT1;
-			}
-			else if((lastX1i >= 0)&&(lastY1i < 0))
-			{
-				lastT1 = 3.1415 + 3.1415 + lastT1;
-			}
+			cart2polar((float)lastX1i / 0x90,(float)lastY1i / 0x90,lastR1,lastT1);
 			
 			//  Right stick
 			int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
 			int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
-
 			cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
-	
+
 		}
 	}
 
@@ -250,17 +236,9 @@ void cart2polar(float inputx, float inputy, float &outputr, float &outputt)
 	//Find angle
 	if(inputx == 0) inputx = 0.01;
 	outputt = atan(inputy / inputx);
-	//lastR1 = sqrt(pow(((float)lastX1i/0x90), 2) + pow(((float)lastY1i/0x90), 2));
-	//if((lastX1i < 0)&&(lastY1i > 0))
-	//{
-	//	lastT1 = 3.1415 + lastT1;
-	//}
-	//else if((lastX1i < 0)&&(lastY1i <= 0))
-	//{
-	//	lastT1 = 3.1415 + lastT1;
-	//}
-	//else if((lastX1i >= 0)&&(lastY1i < 0))
-	//{
-	//	lastT1 = 3.1415 + 3.1415 + lastT1;
-	//}
+	//If either one is negative add pi
+	//if y is between 0 and 1, and x is > 0 add another pi
+	if((inputx < 0)||(inputy < 0)) outputt += 3.14159;
+	if((inputy < 0)&&(inputy > -1)&&(inputx>0)) outputt += 3.14159;
+
 }
