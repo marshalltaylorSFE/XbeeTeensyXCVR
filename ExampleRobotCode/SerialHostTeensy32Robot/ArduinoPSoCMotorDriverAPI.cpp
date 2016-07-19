@@ -27,6 +27,9 @@ Distributed as-is; no warranty is given.
 #include "Wire.h"
 #include "SPI.h"
 
+extern float lastLD;
+extern float lastRD;
+
 //****************************************************************************//
 //
 //  Settings and configuration
@@ -117,12 +120,16 @@ void PSoCMD::setDrive( uint8_t channel, uint8_t direction, uint8_t level )
 	switch(channel)
 	{
 		case 0:  //master
+			lastLD = level;
+			if(direction == 0) lastLD *= -1;
 			direction ^= settings.invertA;
 			driveValue = (level * direction) + ((int8_t)level * ((int8_t)direction - 1)); //set to 1/2 drive if direction = 1 or -1/2 drive if direction = 0; (level * direction);
 			driveValue += 128;
 			writeRegister(PSoCMD_MA_DRIVE, driveValue);
 			break;
 		case 1:  //master
+			lastRD = level;
+			if(direction == 0) lastRD *= -1;
 			direction ^= settings.invertB;
 			driveValue = (level * direction) + ((int8_t)level * ((int8_t)direction - 1)); //set to 1/2 drive if direction = 1 or -1/2 drive if direction = 0; (level * direction);
 			driveValue += 128;

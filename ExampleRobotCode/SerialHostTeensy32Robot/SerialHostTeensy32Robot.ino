@@ -29,8 +29,8 @@ IntervalTimer myTimer; //ISR for Teensy
 
 
 //Other timers
-TimerClass32 remoteInputTimer( 1000 );
-TimerClass32 debugTimer(1000000);
+TimerClass32 remoteInputTimer( 150 );
+TimerClass32 debugTimer(200000);
 
 //Serial packet defines
 #define PACKET_LENGTH 24
@@ -60,13 +60,18 @@ float lastT1;
 float lastR2;
 float lastT2;
 
+//debug variables to print
+float lastLD;
+float lastRD;
+uint8_t lastDriveState;
+
 PSoCMD myMotorDriver;
 
 void setup()
 {
-	Serial.begin(9600); // Initialize Serial Monitor USB
+	Serial.begin(115200); // Initialize Serial Monitor USB
 	Serial2.begin(115200); // Initialize hardware serial port, pins 0/1
-	Serial1.begin(9600);
+	Serial1.begin(115200);
 	pinMode(debugPin, OUTPUT);
 	digitalWrite(debugPin, 0);
 	
@@ -83,7 +88,7 @@ void setup()
 	myMotorDriver.settings.I2CAddress = 0x58;
 	//myMotorDriver.settings.chipSelectPin = 10;
 	//myMotorDriver.settings.invertA = 1;
-	//myMotorDriver.settings.invertB = 1;
+	myMotorDriver.settings.invertB = 1;
 	Serial.println(myMotorDriver.begin(), HEX);
 
 }
@@ -105,7 +110,6 @@ void loop()
 		{
 			//Flag that the packet needs to be serviced
 			packetPending = 1;
-			
 			//Fill packet with null, reset the pointer
 			for( int i = 0; i < PACKET_LENGTH; i++ )
 			{
@@ -159,24 +163,84 @@ void loop()
 			//  Left stick
 			int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
 			int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
-			cart2polar((float)lastX1i / 0x90,(float)lastY1i / 0x90,lastR1,lastT1);
-			
+			cart2polar((float)lastX1i / 0x80,(float)lastY1i / 0x80,lastR1,lastT1);
+
 			//  Right stick
 			int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
 			int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
-			cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
+			cart2polar((float)lastX2i / 0x80,(float)lastY2i / 0x80,lastR2,lastT2);
 			
-			if((lastT1>(0.4))&&(lastT1<(3.14 - 0.4)))
+			//Take actions
+			if(lastB2)
 			{
-				myMotorDriver.setDrive(0,1,lastR1 * 255);
+				lastR1 = lastR1 / 2;
 			}
-			else if((lastT1>(3.14 + 0.4))&&(lastT1<(6.28 - 0.4)))
+			//NOTE: Zones overlap, first executed has priority
+			if(lastR1 > 0.05)
 			{
-				myMotorDriver.setDrive(0,0,lastR1 * 255);
+				float variable1;
+				lastDriveState = 0;
+				if(((lastT1 < 0.087)&&(lastT1 >= 0))||((lastT1 < 6.29)&&(lastT1 > 6.196)))
+				{
+					//In right spin range
+					myMotorDriver.setDrive(0,1,lastR1 * 255);
+					myMotorDriver.setDrive(1,0,lastR1 * 255);
+					lastDriveState = 1;
+				}
+				else if((lastT1 < 3.229)&&(lastT1 > 3.054))
+				{
+					//In left spin range
+					myMotorDriver.setDrive(0,0,lastR1 * 255);
+					myMotorDriver.setDrive(1,1,lastR1 * 255);
+					lastDriveState = 2;
+				}
+				else if((lastT1 < 1.571)&&(lastT1 > 0))
+				{
+					//In right forward range
+					//Get right scale
+					variable1 = ((lastT1 - 0.087)/1.484);
+					if(variable1 > 1) variable1 = 1;
+					myMotorDriver.setDrive(0,1,lastR1 * 255);
+					myMotorDriver.setDrive(1,1,lastR1 * 255 * variable1);
+					lastDriveState = 3;
+					
+				}
+				else if((lastT1 < 3.142)&&(lastT1 > 1.5))
+				{
+					//In left forward range
+					//Get left scale
+					variable1 = 1 - ((lastT1 - 1.571)/1.484);
+					if(variable1 > 1) variable1 = 1;
+					myMotorDriver.setDrive(0,1,lastR1 * 255 * variable1);
+					myMotorDriver.setDrive(1,1,lastR1 * 255);
+					lastDriveState = 4;
+				}
+				else if((lastT1 < 6.2)&&(lastT1 > 4.712))
+				{
+					//In right backward range
+					//Get left scale
+					variable1 = 1 - ((lastT1 - 4.712)/1.484);
+					if(variable1 > 1) variable1 = 1;
+					myMotorDriver.setDrive(0,0,lastR1 * 255 * variable1);
+					myMotorDriver.setDrive(1,0,lastR1 * 255);
+					lastDriveState = 5;
+				}
+				else if((lastT1 < 4.8)&&(lastT1 > 3.142))
+				{
+					//In left backward range
+					//Get right scale
+					variable1 = ((lastT1 - 3.229)/1.484);
+					if(variable1 > 1) variable1 = 1;
+					myMotorDriver.setDrive(0,0,lastR1 * 255);
+					myMotorDriver.setDrive(1,0,lastR1 * 255 * variable1);
+					lastDriveState = 6;
+				}
 			}
 			else
-			{
+			{   //Stop both
 				myMotorDriver.setDrive(0,0,0);
+				myMotorDriver.setDrive(1,0,0);
+				lastDriveState = 7;
 			}
 		}
 	}
@@ -186,24 +250,24 @@ void loop()
 	{
 		digitalWrite( debugPin, digitalRead(debugPin) ^ 1 );
 		
-		Serial.print("Reading lastX1: 0x");
-		Serial.print(lastX1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastY1: 0x");
-		Serial.print(lastY1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastX2: 0x");
-		Serial.print(lastX2, HEX);
-		Serial.println("");
-		Serial.print("Reading lastY2: 0x");
-		Serial.print(lastY2, HEX);
-		Serial.println("");
-		Serial.print("Reading lastB1: 0x");
-		Serial.print(lastB1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastB2: 0x");
-		Serial.print(lastB2, HEX);
-		Serial.println("");
+		//Serial.print("Reading lastX1: 0x");
+		//Serial.print(lastX1, HEX);
+		//Serial.println("");
+		//Serial.print("Reading lastY1: 0x");
+		//Serial.print(lastY1, HEX);
+		//Serial.println("");
+		//Serial.print("Reading lastX2: 0x");
+		//Serial.print(lastX2, HEX);
+		//Serial.println("");
+		//Serial.print("Reading lastY2: 0x");
+		//Serial.print(lastY2, HEX);
+		//Serial.println("");
+		//Serial.print("Reading lastB1: 0x");
+		//Serial.print(lastB1, HEX);
+		//Serial.println("");
+		//Serial.print("Reading lastB2: 0x");
+		//Serial.print(lastB2, HEX);
+		//Serial.println("");
 
 		
 		
@@ -214,9 +278,9 @@ void loop()
 		Serial.print(lastT1);
 		Serial.println("");		
 
-		Serial.print("lastDeg1: ");
-		Serial.print( (lastT1 / 6.25) * 360 );
-		Serial.println("");		
+		//Serial.print("lastDeg1: ");
+		//Serial.print( (lastT1 / 6.25) * 360 );
+		//Serial.println("");		
 
 		Serial.print("lastR2: ");
 		Serial.print(lastR2);
@@ -225,12 +289,27 @@ void loop()
 		Serial.print(lastT2);
 		Serial.println("");		
 
-		Serial.print("lastDeg2: ");
-		Serial.print( (lastT2 / 6.25) * 360 );
+		//Serial.print("lastDeg2: ");
+		//Serial.print( (lastT2 / 6.25) * 360 );
+		//Serial.println("");		
+
+		
+		Serial.print("LeftDrive: ");
+		Serial.print(lastLD);
+		Serial.println("");
+		Serial.print("RightDrive: ");
+		Serial.print(lastRD);
 		Serial.println("");		
+		Serial.print("last Drive State: ");
+		Serial.print(lastRD);
+		Serial.println("");	
+		
+		Serial.print("lastDriveState: ");
+		Serial.print(lastDriveState);
+		Serial.println("");	
 
 		Serial.println("");
-
+		
 	}
 
 	
@@ -281,9 +360,10 @@ void cart2polar(float inputx, float inputy, float &outputr, float &outputt)
 	//Find angle
 	if(inputx == 0) inputx = 0.01;
 	outputt = atan(inputy / inputx);
+
 	//If either one is negative add pi
 	//if y is between 0 and 1, and x is > 0 add another pi
 	if((inputx < 0)||(inputy < 0)) outputt += 3.14159;
-	if((inputy < 0)&&(inputy > -1)&&(inputx>0)) outputt += 3.14159;
+	if((inputy < 0)&&(inputy >= -1)&&(inputx>0)) outputt += 3.14159;
 
 }

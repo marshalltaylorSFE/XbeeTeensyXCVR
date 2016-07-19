@@ -48,8 +48,8 @@ IntervalTimer myTimer; //Interrupt for Teensy
 //TimerClass32 usTimerA( 20000 ); //20 ms
 
 //**Current list of timers********************//
-TimerClass32 debugTimer( 100000 ); //0.1 seconds
-TimerClass32 serialSendTimer( 10000 ); //0.01 seconds
+TimerClass32 debugTimer( 1000000 ); //1 seconds
+TimerClass32 serialSendTimer( 3000 ); //0.01 seconds
 
 //Note on TimerClass-
 //Change with usTimerA.setInterval( <the new interval> );
@@ -83,7 +83,7 @@ void setup()
 {
   Serial.begin(115200);
   
-  Serial1.begin(9600);
+  Serial1.begin(115200);
   
   pinMode(LEDPIN, OUTPUT);
   pinMode(INPUTPINB1, INPUT_PULLUP);
@@ -146,48 +146,48 @@ void loop()
 	{
 		//User code
 		digitalWrite( LEDPIN, digitalRead( LEDPIN ) ^ 0x01 );
-		
-		Serial.print("Reading lastX1: 0x");
-		Serial.print(lastX1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastY1: 0x");
-		Serial.print(lastY1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastX2: 0x");
-		Serial.print(lastX2, HEX);
-		Serial.println("");
-		Serial.print("Reading lastY2: 0x");
-		Serial.print(lastY2, HEX);
-		Serial.println("");
-		Serial.print("Reading lastB1: 0x");
-		Serial.print(lastB1, HEX);
-		Serial.println("");
-		Serial.print("Reading lastB2: 0x");
-		Serial.print(lastB2, HEX);
-		Serial.println("");
-
-		Serial.print("lastR1: ");
-		Serial.print(lastR1);
-		Serial.println("");
-		Serial.print("lastT1: ");
-		Serial.print(lastT1);
-		Serial.println("");		
-
-		Serial.print("lastDeg1: ");
-		Serial.print( (lastT1 / 6.25) * 360 );
-		Serial.println("");		
-
-		Serial.print("lastR2: ");
-		Serial.print(lastR2);
-		Serial.println("");
-		Serial.print("lastT2: ");
-		Serial.print(lastT2);
-		Serial.println("");		
-
-		Serial.print("lastDeg2: ");
-		Serial.print( (lastT2 / 6.25) * 360 );
-		Serial.println("");		
-
+//		
+////		Serial.print("Reading lastX1: 0x");
+//		Serial.print(lastX1, HEX);
+//		Serial.println("");
+////		Serial.print("Reading lastY1: 0x");
+//		Serial.print(lastY1, HEX);
+//		Serial.println("");
+////		Serial.print("Reading lastX2: 0x");
+//		Serial.print(lastX2, HEX);
+//		Serial.println("");
+////		Serial.print("Reading lastY2: 0x");
+//		Serial.print(lastY2, HEX);
+//		Serial.println("");
+////		Serial.print("Reading lastB1: 0x");
+//		Serial.print(lastB1, HEX);
+//		Serial.println("");
+////		Serial.print("Reading lastB2: 0x");
+//		Serial.print(lastB2, HEX);
+//		Serial.println("");
+//
+////		Serial.print("lastR1: ");
+//		Serial.print(lastR1);
+//		Serial.println("");
+////		Serial.print("lastT1: ");
+//		Serial.print(lastT1);
+//		Serial.println("");		
+//
+////		Serial.print("lastDeg1: ");
+//		Serial.print( (lastT1 / 6.25) * 360 );
+//		Serial.println("");		
+//
+////		Serial.print("lastR2: ");
+//		Serial.print(lastR2);
+//		Serial.println("");
+////		Serial.print("lastT2: ");
+//		Serial.print(lastT2);
+//		Serial.println("");		
+//
+////		Serial.print("lastDeg2: ");
+//		Serial.print( (lastT2 / 6.25) * 360 );
+//		Serial.println("");		
+//
 		Serial.println("");
 		
 	}
@@ -207,14 +207,14 @@ void loop()
 		lastB2 = 0x1 ^ digitalRead(INPUTPINB2);
 		//Calculate polar coordinates 
 		//  Left stick
-		int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
-		int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
-		cart2polar((float)lastX1i / 0x90,(float)lastY1i / 0x90,lastR1,lastT1);
-		
-		//  Right stick
-		int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
-		int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
-		cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
+		//int16_t lastX1i = (int16_t)lastX1 - 0x7D;  //Needs to be well centered by hardcoded value here
+		//int16_t lastY1i = (int16_t)lastY1 - 0x82;  //Needs to be well centered by hardcoded value here
+		//cart2polar((float)lastX1i / 0x90,(float)lastY1i / 0x90,lastR1,lastT1);
+		//
+		////  Right stick
+		//int16_t lastX2i = (int16_t)lastX2 - 0x83;  //Needs to be well centered by hardcoded value here
+		//int16_t lastY2i = (int16_t)lastY2 - 0x7A;  //Needs to be well centered by hardcoded value here
+		//cart2polar((float)lastX2i / 0x90,(float)lastY2i / 0x90,lastR2,lastT2);
 				
 		// If new, ship it!
 		if( tempStatus )
