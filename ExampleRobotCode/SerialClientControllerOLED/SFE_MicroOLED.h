@@ -156,6 +156,7 @@ public:
 	void invert(boolean inv);
 	void contrast(uint8_t contrast);
 	void display(void);
+	void display(uint8_t);
 	void setCursor(uint8_t x, uint8_t y);
 	void pixel(uint8_t x, uint8_t y);
 	void pixel(uint8_t x, uint8_t y, uint8_t color, uint8_t mode);

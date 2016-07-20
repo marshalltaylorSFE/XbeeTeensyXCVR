@@ -400,6 +400,16 @@ void MicroOLED::display(void) {
 	}
 }
 
+void MicroOLED::display(uint8_t i) {
+	uint8_t j;
+
+	setPageAddress(i);
+	setColumnAddress(0);
+	for (j=0;j<0x40;j++) {
+		data(screenmemory[i*0x40+j]);
+	}
+}
+
 /** \brief Override Arduino's Print.
 
     Arduino's print overridden so that we can use uView.print().

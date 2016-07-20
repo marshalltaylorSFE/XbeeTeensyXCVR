@@ -22,6 +22,8 @@
 uint32_t maxTimer = 60000000;
 uint32_t maxInterval = 2000000;
 
+uint8_t displayIncrement = 0;
+
 uint32_t packetNumber = 0;
 
 uint16_t lastX1;
@@ -43,12 +45,14 @@ uint8_t lastB2;
 #define INPUTPINB1 3
 #define INPUTPINB2 2
 
-volatile uint32_t debugLastTime[5];
-volatile uint32_t debugStartTime[5];
-volatile uint32_t debugStopTime[5];
+#define DEBUG_TIME_SLOTS 20
+volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
+volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
+volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
 
 uint8_t displayPage = 0;
-
+uint8_t peakHold = 0;
+uint32_t peakValues[2][DEBUG_TIME_SLOTS];
 //////////////////////////
 // MicroOLED Definition //
 //////////////////////////
@@ -75,9 +79,10 @@ IntervalTimer myTimer; //Interrupt for Teensy
 //TimerClass32 usTimerA( 20000 ); //20 ms
 
 //**Current list of timers********************//
-TimerClass32 debugTimer( 1000000 ); //1 seconds
-TimerClass32 serialSendTimer( 3000 ); //0.01 seconds
-
+TimerClass32 debugTimer( 150000 ); //1 seconds
+TimerClass32 serialSendTimer( 5000 ); //0.01 seconds
+TimerClass32 oledSendTimer( 2000 ); //0.01 seconds
+TimerClass32 rxCheckTimer( 200 );
 //Note on TimerClass-
 //Change with usTimerA.setInterval( <the new interval> );
 
@@ -148,11 +153,17 @@ void setup()
    oled.clear(ALL);  // Clear the display's memory (gets rid of artifacts)
   oled.display();  
   delay(3000);
-   oled.clear(ALL);  // Clear the display's memory (gets rid of artifacts)
+//   oled.clear(page);  // Clear the display's memory (gets rid of artifacts)
+//   oled.display();
   delay(500);
   oled.setFontType(0);  // Set the text to small (10 columns, 6 rows worth of characters).
+	oled.clear(PAGE);
+	oled.print("TX Itvl:\n");
+	oled.print("\nTX Dura:\n");
+	oled.setCursor(26,40);
+	oled.print("Peak:");
+	oled.print(peakHold);
 
- 
 }
 
 void loop()
@@ -164,17 +175,38 @@ void loop()
 		//msTimerA.update(usTicks);
 		debugTimer.update(usTicks);
 		serialSendTimer.update(usTicks);
-
+		oledSendTimer.update(usTicks);
+		rxCheckTimer.update(usTicks);
 		//Done?  Lock it back up
 		usTicksLocked = 1;
 	}  //The ISR will unlock.
-
 	//**Copy to make a new timer******************//  
 	//if(usTimerA.flagStatus() == PENDING)
 	//{
 	//	//User code
 	//}
-	
+	//**Check incomming data timer****************//  
+	if(rxCheckTimer.flagStatus() == PENDING)
+	{
+		debugLastTime[4] = debugStartTime[4];
+		debugStartTime[4] = usTicks;
+		
+
+		debugStopTime[4] = usTicks;
+	}
+	//**Display clock*****************************//  
+	if(oledSendTimer.flagStatus() == PENDING)
+	{
+		debugLastTime[3] = debugStartTime[3];
+		debugStartTime[3] = usTicks;
+		
+		displayIncrement++;
+		if(displayIncrement > 5) displayIncrement = 0;
+
+		oled.display(displayIncrement); // Draw to the screen
+
+		debugStopTime[3] = usTicks;
+	}
 	if(debugTimer.flagStatus() == PENDING)
 	{
 		debugLastTime[1] = debugStartTime[1];
@@ -224,39 +256,228 @@ void loop()
 //
 		Serial.println("");
 		
-		oled.clear(PAGE);
-		oled.display();
-		oled.setCursor(0,0);
+//		oled.display();
 		if((lastY2 > 0xA0)&&(lastB2))
 		{
 			displayPage++;
-			if(displayPage > 2)displayPage = 0;
+			if(displayPage >= DEBUG_TIME_SLOTS)displayPage = 0;
+			oled.clear(PAGE);
+			oled.setCursor(0,0);
+			switch(displayPage)
+			{
+				case 0:
+					oled.print("TX Itvl:\n");
+					oled.print("\nTX Dura:\n");
+				break;
+				case 1:
+					oled.print("DBG Itvl:\n");
+					oled.print("\nDBG Dura:\n");
+				break;
+				case 2:
+					oled.print("oled Itvl:");
+					oled.print("\noled Dura:");
+				break;
+				case 3:
+					oled.print("TX AFW:\n");
+					oled.print("\nRX AVL:\n");
+				break;
+				case 4:
+					oled.print("RX Itvl:\n");
+					oled.print("\nRX Dura:\n");
+				break;
+				default:
+					oled.print("No pg: ");
+					oled.print(displayPage);
+				break;
+			}
+			oled.setCursor(26,40);
+			oled.print("Peak:");
+			oled.print(peakHold);
+
 		}
+		if((lastY2 < 0x60)&&(lastB2))
+		{
+			peakHold ^= 0x01;
+			for( int i = 0; i < DEBUG_TIME_SLOTS; i++)
+			{
+				peakValues[0][i] = 0;
+				peakValues[1][i] = 0;
+			}
+			oled.setCursor(26,40);
+			oled.print("Peak:");
+			oled.print(peakHold);
+		}
+		uint32_t tempValue = 0;
+		oled.setCursor(0,8);
+		oled.print("         ");
+		oled.setCursor(0,24);
+		oled.print("         ");
 		switch(displayPage)
 		{
 			case 0:
-				oled.print("TX Itvl:\n");
-				oled.print(debugStartTime[0] - debugLastTime[0]);
-				oled.print("\nTX Dura:\n");
-				oled.print(debugStopTime[0] - debugStartTime[0]);
-			break;
+				oled.setCursor(0,8);
+				tempValue = debugStartTime[0] - debugLastTime[0];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][0])
+					{
+						peakValues[0][0] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][0]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = debugStopTime[0] - debugStartTime[0];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][0])
+					{
+						peakValues[1][0] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][0]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				break;
 			case 1:
-				oled.print("DBG Itvl:\n");
-				oled.print(debugStartTime[2] - debugLastTime[2]);
-				oled.print("\nDBG Dura:\n");
-				oled.print(debugStopTime[2] - debugStartTime[2]);
+				oled.setCursor(0,8);
+				tempValue = debugStartTime[2] - debugLastTime[2];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][2])
+					{
+						peakValues[0][2] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][2]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = debugStopTime[2] - debugStartTime[2];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][2])
+					{
+						peakValues[1][2] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][2]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
 			break;
 			case 2:
-				oled.print("TX AFW:\n");
+				oled.setCursor(0,8);
+				tempValue = debugStartTime[3] - debugLastTime[3];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][3])
+					{
+						peakValues[0][3] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][3]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = debugStopTime[3] - debugStartTime[3];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][3])
+					{
+						peakValues[1][3] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][3]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 3:
+				oled.setCursor(0,8);
 				oled.print(Serial1.availableForWrite());
-				oled.print("\nRX AVL:\n");
+				oled.setCursor(0,24);
 				oled.print(Serial1.available());
-			
+			break;
+			case 4:
+				oled.setCursor(0,8);
+				tempValue = debugStartTime[4] - debugLastTime[4];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = debugStopTime[4] - debugStartTime[4];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
 			break;
 			default:
 			break;
 		}
-		oled.display(); // Draw to the screen
+
 		debugStopTime[1] = usTicks;
 		//copy to usable section
 		debugLastTime[2] = debugLastTime[1];
