@@ -49,7 +49,7 @@ uint8_t lastB2;
 volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
-volatile uint32_t remoteNumbers[10];
+volatile uint32_t remoteNumbers[20];
 
 
 uint8_t displayPage = 0;
@@ -241,6 +241,7 @@ void loop()
 			if(lastPacketNumber == 10)
 			{
 				remoteNumbers[9] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[10] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
 			}
 		}
 
@@ -351,6 +352,7 @@ void loop()
 				break;
 				case 8:
 					oled.print("FSAFE:\n");
+					oled.print("\nI2C FLT:\n");
 				break;
 				default:
 					oled.print("No pg: ");
@@ -673,6 +675,24 @@ void loop()
 						oled.print(peakValues[0][4]);
 					}
 
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[10];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
 				}
 				else
 				{

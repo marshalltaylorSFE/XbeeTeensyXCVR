@@ -27,6 +27,9 @@ uint8_t debugPin = 13;
 uint32_t maxTimer = 60000000;
 uint32_t maxInterval = 2000000;
 
+uint16_t i2cFaults = 0;
+uint16_t i2cFaultsServiced = 0; //last serviced fault
+
 IntervalTimer myTimer; //ISR for Teensy
 
 
@@ -188,7 +191,7 @@ void loop()
 		debugLastTime[3] = debugStartTime[3];
 		debugStartTime[3] = usTicks;
 		failSafeTimer.mIncrement(1);
-		if(failSafeTimer.mGet() > 100)
+		if(failSafeTimer.mGet() > 100) //Detected delay of communication
 		{
 			//failed
 			if(failSafe == 0)
@@ -201,7 +204,15 @@ void loop()
 			myMotorDriver.setDrive(1,0,0);
 			lastDriveState = 7;
 		}
-
+		while(i2cFaults > i2cFaultsServiced)
+		{
+			i2cFaultsServiced = i2cFaults;
+			delay(200);//Wait for fault to clear
+			myMotorDriver.setDrive(0,0,0);
+			myMotorDriver.setDrive(1,0,0);
+			lastDriveState = 7;
+			
+		}
 
 		//if the packet is full and the last char is LF or CR, *do something here*
 		if((packetPending == 1) && ((packet_ptr == PACKET_LENGTH) && ((packet[PACKET_LENGTH - 1] == 0x0A) || (packet[PACKET_LENGTH - 1] == 0x0D))) )
@@ -327,6 +338,8 @@ void loop()
 			{
 				tempInterval = failSafeCounter;
 				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				tempDuration = i2cFaults;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
 			if( 1 )
 			{

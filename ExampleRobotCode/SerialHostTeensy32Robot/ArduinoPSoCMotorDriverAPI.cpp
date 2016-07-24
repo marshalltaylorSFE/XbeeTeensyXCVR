@@ -24,11 +24,13 @@ Distributed as-is; no warranty is given.
 #include "stdint.h"
 #include <math.h>
 
-#include <Wire.h>
+#include <i2c_t3.h>
 #include "SPI.h"
 
 extern float lastLD;
 extern float lastRD;
+
+extern uint16_t i2cFaults;
 
 //****************************************************************************//
 //
@@ -156,10 +158,11 @@ void PSoCMD::readRegisterRegion(uint8_t *outputPointer , uint8_t offset, uint8_t
 	case I2C_MODE:
 		Wire.beginTransmission(settings.I2CAddress);
 		Wire.write(offset);
-		Wire.endTransmission();
+		//Wire.endTransmission();
+		if(Wire.endTransmission(I2C_STOP,500)) i2cFaults++;
 
 		// request bytes from slave device
-		Wire.requestFrom(settings.I2CAddress, length);
+		if(Wire.requestFrom(settings.I2CAddress, length, I2C_STOP, 500)) i2cFaults++;
 		while ( (Wire.available()) && (i < length))  // slave may send less than requested
 		{
 			c = Wire.read(); // receive a byte as character
@@ -201,9 +204,10 @@ uint8_t PSoCMD::readRegister(uint8_t offset)
 	case I2C_MODE:
 		Wire.beginTransmission(settings.I2CAddress);
 		Wire.write(offset);
-		Wire.endTransmission();
-
-		Wire.requestFrom(settings.I2CAddress, numBytes);
+		//Wire.endTransmission();
+		if(Wire.endTransmission(I2C_STOP,500))i2cFaults++;
+		
+		if(Wire.requestFrom(settings.I2CAddress, numBytes, I2C_STOP,500))i2cFaults++;
 		while ( Wire.available() ) // slave may send less than requested
 		{
 			result = Wire.read(); // receive a byte as a proper uint8_t
@@ -245,7 +249,8 @@ void PSoCMD::writeRegister(uint8_t offset, uint8_t dataToWrite)
 		Wire.beginTransmission(settings.I2CAddress);
 		Wire.write(offset);
 		Wire.write(dataToWrite);
-		Wire.endTransmission();
+		//Wire.endTransmission();
+		if(Wire.endTransmission(I2C_STOP,500))i2cFaults++;
 		break;
 
 	case SPI_MODE:
