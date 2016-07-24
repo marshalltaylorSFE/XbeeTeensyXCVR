@@ -24,7 +24,7 @@ Distributed as-is; no warranty is given.
 #include "stdint.h"
 #include <math.h>
 
-#include "Wire.h"
+#include <Wire.h>
 #include "SPI.h"
 
 extern float lastLD;

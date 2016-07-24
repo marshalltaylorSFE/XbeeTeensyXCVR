@@ -18,6 +18,8 @@
 #include "timerModule32.h"
 #include "timeKeeper.h"
 
+TimeKeeper failSafeTimer;
+
 //Hardware locations
 uint8_t wsPin = 6;
 uint8_t debugPin = 13;
@@ -29,7 +31,8 @@ IntervalTimer myTimer; //ISR for Teensy
 
 
 //Other timers
-TimerClass32 remoteInputTimer( 150 );
+TimerClass32 rxCheckTimer( 150 );
+TimerClass32 remoteInputTimer( 1000 );
 TimerClass32 debugTimer(200000);
 
 //Serial packet defines
@@ -38,8 +41,12 @@ TimerClass32 debugTimer(200000);
 
 char lastchar;
 char packet[PACKET_LENGTH];
+char txPacket[PACKET_LENGTH];
 char lastPacket[PACKET_LENGTH];
 char packetPending = 0;
+
+uint8_t failSafe = 0;
+uint16_t failSafeCounter = 0;
 
 uint8_t packet_ptr;
 
@@ -59,16 +66,48 @@ float lastR1;
 float lastT1;
 float lastR2;
 float lastT2;
+uint8_t lastPacketNumber = 0;
 
 //debug variables to print
 float lastLD;
 float lastRD;
 uint8_t lastDriveState;
 
+#define DEBUG_TIME_SLOTS 5
+volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
+volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
+volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
+
 PSoCMD myMotorDriver;
 
 void setup()
 {
+	//Build the empty packet
+	txPacket[0] = '~';
+	txPacket[1] = ' ';
+	txPacket[2] = ' ';
+	txPacket[3] = ' ';
+	txPacket[4] = ' ';
+	txPacket[5] = ' ';
+	txPacket[6] = ' ';
+	txPacket[7] = ' ';
+	txPacket[8] = ' ';
+	txPacket[9] = ' ';
+	txPacket[10] = ' ';
+	txPacket[11] = ' ';
+	txPacket[12] = ' ';
+	txPacket[13] = ' ';
+	txPacket[14] = ' ';
+	txPacket[15] = ' ';
+	txPacket[16] = ' ';
+	txPacket[17] = ' ';
+	txPacket[18] = ' ';
+	txPacket[19] = ' ';
+	txPacket[20] = ' ';
+	txPacket[21] = ' ';
+	txPacket[22] = 0x0D;
+	txPacket[23] = 0x0A;
+
 	Serial.begin(115200); // Initialize Serial Monitor USB
 	Serial2.begin(115200); // Initialize hardware serial port, pins 0/1
 	Serial1.begin(115200);
@@ -96,51 +135,81 @@ void setup()
 void loop()
 {
 	//**Update the timers*************************//  
+	rxCheckTimer.update(usTicks);
 	remoteInputTimer.update(usTicks);
 	debugTimer.update(usTicks);
+	
 
 	//**Read changes from the controller**********//  
-	if(remoteInputTimer.flagStatus() == PENDING)
+	if(rxCheckTimer.flagStatus() == PENDING)
 	{
-		if (Serial1.available())
+		debugLastTime[0] = debugStartTime[0];
+		debugStartTime[0] = usTicks;
+		while(Serial1.available())
 		{
-		lastchar = Serial1.read();
-		//look for packet start (START_SYMBOL)
-		if( lastchar == START_SYMBOL )
-		{
-			//Flag that the packet needs to be serviced
-			packetPending = 1;
-			//Fill packet with null, reset the pointer
-			for( int i = 0; i < PACKET_LENGTH; i++ )
+			lastchar = Serial1.read();
+			//look for packet start (START_SYMBOL)
+			if( lastchar == START_SYMBOL )
 			{
-			packet[i] = 0;
+				//Flag that the packet needs to be serviced
+				packetPending = 1;
+				//Fill packet with null, reset the pointer
+				for( int i = 0; i < PACKET_LENGTH; i++ )
+				{
+					packet[i] = 0;
+				}
+				//write the start char
+				packet[0] = START_SYMBOL;
+				//reset the pointer
+				packet_ptr = 1;
 			}
-			//write the start char
-			packet[0] = START_SYMBOL;
-			//reset the pointer
-			packet_ptr = 1;
-		}
-		else
-		if( ( packet_ptr < PACKET_LENGTH ) && (packet_ptr > 0) )//check for room in the packet, and that the start char has been seen
-		{
-			//put the char in the packet
-			packet[packet_ptr] = lastchar;
-			//advance the pointer
-			packet_ptr++;
-			//turn on LED
-		}
-		else
-		{
-			//Just overwrite to the last position
-			packet[PACKET_LENGTH - 1] = lastchar;
-		}
+			else if( ( packet_ptr < PACKET_LENGTH ) && (packet_ptr > 0) )//check for room in the packet, and that the start char has been seen
+			{
+				//put the char in the packet
+				packet[packet_ptr] = lastchar;
+				//advance the pointer
+				packet_ptr++;
+				//turn on LED
+			}
+			else
+			{
+				//Just overwrite to the last position
+				packet[PACKET_LENGTH - 1] = lastchar;
+			}
 		}
 		
 		uint8_t changed = 0;
-		
+		debugStopTime[0] = usTicks;
+	}
+	
+	//**Read changes from the controller**********//  
+	if(remoteInputTimer.flagStatus() == PENDING)
+	{
+		debugLastTime[3] = debugStartTime[3];
+		debugStartTime[3] = usTicks;
+		failSafeTimer.mIncrement(1);
+		if(failSafeTimer.mGet() > 100)
+		{
+			//failed
+			if(failSafe == 0)
+			{
+				//New failure
+				failSafe = 1;
+				failSafeCounter++;
+			}
+			myMotorDriver.setDrive(0,0,0);
+			myMotorDriver.setDrive(1,0,0);
+			lastDriveState = 7;
+		}
+
+
 		//if the packet is full and the last char is LF or CR, *do something here*
 		if((packetPending == 1) && ((packet_ptr == PACKET_LENGTH) && ((packet[PACKET_LENGTH - 1] == 0x0A) || (packet[PACKET_LENGTH - 1] == 0x0D))) )
 		{
+			//Got a packet, clear failsafe
+			failSafeTimer.mClear();
+			failSafe = 0;
+			
 			digitalWrite(13, digitalRead(13)^1);
 			//check for new data
 			packetPending = 0;
@@ -153,6 +222,7 @@ void loop()
 					//Serial.println("change marked");
 				} 
 			}
+			lastPacketNumber = char2hex(packet[1]);
 			lastX1 = char2hex(packet[4]) | (char2hex(packet[3]) << 4);
 			lastY1 = char2hex(packet[6]) | (char2hex(packet[5]) << 4);
 			lastX2 = char2hex(packet[8]) | (char2hex(packet[7]) << 4);
@@ -242,12 +312,68 @@ void loop()
 				myMotorDriver.setDrive(1,0,0);
 				lastDriveState = 7;
 			}
+			
+			//Send return packet
+			uint32_t tempInterval = 0;
+			uint32_t tempDuration = 0;
+			if(lastPacketNumber < 3)
+			{
+				tempInterval = debugStartTime[lastPacketNumber] - debugLastTime[lastPacketNumber];
+				tempDuration = debugStopTime[lastPacketNumber] - debugStartTime[lastPacketNumber];
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
+			}
+			if(lastPacketNumber == 10)
+			{
+				tempInterval = failSafeCounter;
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+			}
+			if( 1 )
+			{
+				txPacket[0] = '~';
+				txPacket[1] = hex2char(lastPacketNumber & 0x000F);
+				txPacket[2] = hex2char(0);
+				txPacket[3] = ' ';
+				txPacket[4] = ' ';
+				txPacket[5] = ' ';
+				txPacket[6] = ' ';
+				txPacket[7] = hex2char((tempInterval & 0xF000) >> 12);
+				txPacket[8] = hex2char((tempInterval & 0x0F00) >> 8);
+				txPacket[9] = hex2char((tempInterval & 0x00F0) >> 4);
+				txPacket[10] = hex2char(tempInterval & 0x000F);
+				txPacket[11] = hex2char((tempDuration & 0xF000) >> 12);
+				txPacket[12] = hex2char((tempDuration & 0x0F00) >> 8);
+				txPacket[13] = hex2char((tempDuration & 0x00F0) >> 4);
+				txPacket[14] = hex2char(tempDuration & 0x000F);
+				txPacket[15] = ' ';
+				txPacket[16] = ' ';
+				txPacket[17] = ' ';
+				txPacket[18] = '.';
+				txPacket[19] = '.';
+				txPacket[20] = '.';
+				txPacket[21] = '.';
+				txPacket[22] = 0x0D;
+				txPacket[23] = 0x0A;
+				for(int i = 0; i < PACKET_LENGTH; i++)
+				{
+					Serial1.write(txPacket[i]);
+				}
+				//Serial1.write(0x0A);
+			}
+
 		}
+
+		debugStopTime[3] = usTicks;
+		debugLastTime[1] = debugLastTime[3];
+		debugStartTime[1] = debugStartTime[3];
+		debugStopTime[1] = debugStopTime[3];
 	}
 
 	//**Debug timer*******************************//  
 	if(debugTimer.flagStatus() == PENDING)
 	{
+		debugLastTime[2] = debugStartTime[2];
+		debugStartTime[2] = usTicks;
 		digitalWrite( debugPin, digitalRead(debugPin) ^ 1 );
 		
 		//Serial.print("Reading lastX1: 0x");
@@ -308,6 +434,22 @@ void loop()
 		Serial.print(lastDriveState);
 		Serial.println("");	
 
+		Serial.print("0 Itvl: ");
+		Serial.println(debugStartTime[0] - debugLastTime[0]);
+		Serial.print("0 Dura: ");
+		Serial.println(debugStopTime[0] - debugStartTime[0]);
+		Serial.print("1 Itvl: ");
+		Serial.println(debugStartTime[1] - debugLastTime[1]);
+		Serial.print("1 Dura: ");
+		Serial.println(debugStopTime[1] - debugStartTime[1]);
+		Serial.print("2 Itvl: ");
+		//Early
+		debugStopTime[2] = usTicks;
+
+		Serial.println(debugStartTime[2] - debugLastTime[2]);
+		Serial.print("2 Dura: ");
+		Serial.println(debugStopTime[2] - debugStartTime[2]);
+		
 		Serial.println("");
 		
 	}

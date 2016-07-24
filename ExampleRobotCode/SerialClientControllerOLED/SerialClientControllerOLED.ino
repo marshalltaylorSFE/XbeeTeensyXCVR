@@ -49,6 +49,8 @@ uint8_t lastB2;
 volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
+volatile uint32_t remoteNumbers[10];
+
 
 uint8_t displayPage = 0;
 uint8_t peakHold = 0;
@@ -80,7 +82,7 @@ IntervalTimer myTimer; //Interrupt for Teensy
 
 //**Current list of timers********************//
 TimerClass32 debugTimer( 150000 ); //1 seconds
-TimerClass32 serialSendTimer( 5000 ); //0.01 seconds
+TimerClass32 serialSendTimer( 20000 ); //0.01 seconds
 TimerClass32 oledSendTimer( 2000 ); //0.01 seconds
 TimerClass32 rxCheckTimer( 200 );
 //Note on TimerClass-
@@ -108,8 +110,10 @@ char txPacket[PACKET_LENGTH];
 char lastPacket[PACKET_LENGTH];
 char packetPending = 0;
 
-char packet_ptr;
 
+
+char packet_ptr;
+char rxPacket_ptr;
 
 void setup()
 {
@@ -190,7 +194,55 @@ void loop()
 	{
 		debugLastTime[4] = debugStartTime[4];
 		debugStartTime[4] = usTicks;
-		
+		while(Serial1.available())
+		{
+			lastchar = Serial1.read();
+			//look for packet start (START_SYMBOL)
+			if( lastchar == START_SYMBOL )
+			{
+				//Flag that the packet needs to be serviced
+				packetPending = 1;
+				//Fill packet with null, reset the pointer
+				for( int i = 0; i < PACKET_LENGTH; i++ )
+				{
+					rxPacket[i] = 0;
+				}
+				//write the start char
+				rxPacket[0] = START_SYMBOL;
+				//reset the pointer
+				rxPacket_ptr = 1;
+			}
+			else if( ( rxPacket_ptr < PACKET_LENGTH ) && (rxPacket_ptr > 0) )//check for room in the packet, and that the start char has been seen
+			{
+				//put the char in the packet
+				rxPacket[rxPacket_ptr] = lastchar;
+				//advance the pointer
+				rxPacket_ptr++;
+				//turn on LED
+			}
+			else
+			{
+				//Just overwrite to the last position
+				rxPacket[PACKET_LENGTH - 1] = lastchar;
+			}
+		}
+		if((packetPending == 1) && ((rxPacket_ptr == PACKET_LENGTH) && ((rxPacket[PACKET_LENGTH - 1] == 0x0A) || (rxPacket[PACKET_LENGTH - 1] == 0x0D))) )
+		{
+			digitalWrite(13, digitalRead(13)^1);
+			//check for new data
+			packetPending = 0;
+
+			uint8_t lastPacketNumber = char2hex(rxPacket[1]);
+			if(lastPacketNumber < 3)
+			{
+				remoteNumbers[2*lastPacketNumber] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[2*lastPacketNumber + 1] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
+			}
+			if(lastPacketNumber == 10)
+			{
+				remoteNumbers[9] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+			}
+		}
 
 		debugStopTime[4] = usTicks;
 	}
@@ -284,6 +336,21 @@ void loop()
 				case 4:
 					oled.print("RX Itvl:\n");
 					oled.print("\nRX Dura:\n");
+				break;
+				case 5:
+					oled.print("R0 Intv:\n");
+					oled.print("\nR0 Dura:\n");
+				break;
+				case 6:
+					oled.print("R1 Itvl:\n");
+					oled.print("\nR1 Dura:\n");
+				break;
+				case 7:
+					oled.print("R2 Itvl:\n");
+					oled.print("\nR2 Dura:\n");
+				break;
+				case 8:
+					oled.print("FSAFE:\n");
 				break;
 				default:
 					oled.print("No pg: ");
@@ -474,6 +541,144 @@ void loop()
 					oled.print(tempValue);
 				}
 			break;
+			case 5:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[0];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[1];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 6:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[2];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[3];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 7:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[4];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[5];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 8:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[9];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
 			default:
 			break;
 		}
@@ -543,7 +748,7 @@ void loop()
 			{
 				Serial1.write(txPacket[i]);
 			}
-			Serial1.write(0x0A);
+			//Serial1.write(0x0A);
 			packetNumber++;
 		}
 		debugStopTime[0] = usTicks;
