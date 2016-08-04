@@ -29,13 +29,23 @@ Distributed as-is; no warranty is given.
 #define SPI_MODE 1
 
 //Register names:
-#define PSoCMD_STATUS                   0x00
-#define PSoCMD_ID                       0x01
-#define PSoCMD_ADDRESS                  0x02
-#define PSoCMD_CONFIG_BITS              0x03
-#define PSoCMD_DEBUG                    0x0A
-#define PSoCMD_MA_DRIVE                 0x10
-#define PSoCMD_MB_DRIVE                 0x11
+#define SCMD_STATUS          0x00
+#define SCMD_ID              0x01
+#define SCMD_ADDRESS         0x02
+#define SCMD_CONFIG_BITS     0x03
+#define SCMD_I2C_FAULTS      0x04
+#define SCMD_I2C_RD_ERR      0x05
+#define SCMD_I2C_WR_ERR      0x06
+#define SCMD_SPI_FAULTS      0x07
+#define SCMD_UART_FAULTS     0x08
+#define SCMD_UPORT_TIME	     0x09
+
+#define SCMD_FSAFE_TIME      0x18
+#define SCMD_FSAFE_FAULTS    0x19
+
+#define SCMD_MA_DRIVE        0x20
+#define SCMD_MB_DRIVE        0x21
+
 
 
 //Class SensorSettings.  This object is used to hold settings data.  The application

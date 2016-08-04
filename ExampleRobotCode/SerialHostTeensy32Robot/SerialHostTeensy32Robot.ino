@@ -18,6 +18,25 @@
 #include "timerModule32.h"
 #include "timeKeeper.h"
 
+#define SCMD_STATUS          0x00
+#define SCMD_ID              0x01
+#define SCMD_ADDRESS         0x02
+#define SCMD_CONFIG_BITS     0x03
+#define SCMD_I2C_FAULTS      0x04
+#define SCMD_I2C_RD_ERR      0x05
+#define SCMD_I2C_WR_ERR      0x06
+#define SCMD_SPI_FAULTS      0x07
+#define SCMD_UART_FAULTS     0x08
+#define SCMD_UPORT_TIME	     0x09
+
+#define SCMD_FSAFE_TIME      0x18
+#define SCMD_FSAFE_FAULTS    0x19
+
+#define SCMD_MA_DRIVE        0x20
+#define SCMD_MB_DRIVE        0x21
+
+
+
 TimeKeeper failSafeTimer;
 
 //Hardware locations
@@ -75,6 +94,14 @@ uint8_t lastPacketNumber = 0;
 float lastLD;
 float lastRD;
 uint8_t lastDriveState;
+
+uint8_t SCMD_i2cFaults = 0;
+uint8_t SCMD_i2cRdErr = 0;
+uint8_t SCMD_i2cWrErr = 0;
+uint8_t SCMD_devID = 0;
+uint8_t SCMD_fSafeTime = 0;
+uint8_t SCMD_fSafeFaults = 0;
+
 
 #define DEBUG_TIME_SLOTS 5
 volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
@@ -206,11 +233,17 @@ void loop()
 		}
 		while(i2cFaults > i2cFaultsServiced)
 		{
+			Serial.print("*");
 			i2cFaultsServiced = i2cFaults;
-			delay(200);//Wait for fault to clear
-			myMotorDriver.setDrive(0,0,0);
-			myMotorDriver.setDrive(1,0,0);
-			lastDriveState = 7;
+			uint8_t * I2C_CTRL1_reg;
+			I2C_CTRL1_reg = (uint8_t *)0x40066002;
+			*I2C_CTRL1_reg = 0x00;
+			delay(10);
+			myMotorDriver.reset();
+			//delay(200);//Wait for fault to clear
+			//myMotorDriver.setDrive(0,0,0);
+			//myMotorDriver.setDrive(1,0,0);
+			//lastDriveState = 7;
 			
 		}
 
@@ -255,6 +288,10 @@ void loop()
 			if(lastB2)
 			{
 				lastR1 = lastR1 / 2;
+			}
+			if(lastB1 && lastB2)
+			{
+				myMotorDriver.writeRegister(0x18, 50);
 			}
 			//NOTE: Zones overlap, first executed has priority
 			if(lastR1 > 0.05)
@@ -341,6 +378,28 @@ void loop()
 				tempDuration = i2cFaults;
 				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
+			if(lastPacketNumber == 11)
+			{
+				tempInterval = SCMD_i2cRdErr;
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				tempDuration = SCMD_i2cWrErr;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
+			}
+			if(lastPacketNumber == 12)
+			{
+				tempInterval = SCMD_devID;
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				tempDuration = SCMD_i2cFaults;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
+			}
+			if(lastPacketNumber == 13)
+			{
+				tempInterval = SCMD_fSafeTime;
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				tempDuration = SCMD_fSafeFaults;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
+			}
+
 			if( 1 )
 			{
 				txPacket[0] = '~';
@@ -388,6 +447,24 @@ void loop()
 		debugLastTime[2] = debugStartTime[2];
 		debugStartTime[2] = usTicks;
 		digitalWrite( debugPin, digitalRead(debugPin) ^ 1 );
+		
+		SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_I2C_FAULTS);
+		Serial.print("SCMD_i2cFaults = ");
+		Serial.println(SCMD_i2cFaults);
+		SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_I2C_RD_ERR);
+		SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_I2C_WR_ERR);
+		SCMD_devID = myMotorDriver.readRegister(SCMD_ID);
+		Serial.print("SCMD_devID = ");
+		Serial.println(SCMD_devID);
+		SCMD_fSafeTime = myMotorDriver.readRegister(SCMD_FSAFE_TIME);
+		SCMD_fSafeFaults = myMotorDriver.readRegister(SCMD_FSAFE_FAULTS);
+		
+		//Serial.print("Reading failSafeCounter: ");
+		//Serial.print(failSafeCounter);
+		//Serial.println("");
+		//Serial.print("Reading i2cFaults: ");
+		//Serial.print(i2cFaults);
+		//Serial.println("");
 		
 		//Serial.print("Reading lastX1: 0x");
 		//Serial.print(lastX1, HEX);
@@ -464,7 +541,18 @@ void loop()
 		Serial.println(debugStopTime[2] - debugStartTime[2]);
 		
 		Serial.println("");
-		
+		uint8_t * address;
+		for( uint32_t tempAddress = 0x40066000; tempAddress <= 0x4006600B; tempAddress++)
+		{
+			address = (uint8_t *)tempAddress;
+			Serial.print("Address 0x");
+			Serial.print((uint32_t)address, HEX);
+			Serial.print(" contains 0x");
+			Serial.println(*address, HEX);
+		}
+
+		Serial.println("");
+
 	}
 
 	

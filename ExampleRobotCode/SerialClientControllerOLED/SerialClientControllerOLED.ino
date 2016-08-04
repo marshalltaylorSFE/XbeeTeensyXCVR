@@ -243,6 +243,22 @@ void loop()
 				remoteNumbers[9] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
 				remoteNumbers[10] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
 			}
+			if(lastPacketNumber == 11)
+			{
+				remoteNumbers[11] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[12] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
+			}
+			if(lastPacketNumber == 12)
+			{
+				remoteNumbers[13] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[14] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
+			}
+			if(lastPacketNumber == 13)
+			{
+				remoteNumbers[15] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[16] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
+			}
+
 		}
 
 		debugStopTime[4] = usTicks;
@@ -353,6 +369,18 @@ void loop()
 				case 8:
 					oled.print("FSAFE:\n");
 					oled.print("\nI2C FLT:\n");
+				break;
+				case 9:
+					oled.print("I2C RdE:\n");
+					oled.print("\nI2C WrE:\n");
+				break;
+				case 10:
+					oled.print("DEVID:\n");
+					oled.print("\nI2FLTs:\n");
+				break;
+				case 11:
+					oled.print("FSt:\n");
+					oled.print("\nFSctr:\n");
 				break;
 				default:
 					oled.print("No pg: ");
@@ -682,6 +710,123 @@ void loop()
 				}
 				oled.setCursor(0,24);
 				tempValue = remoteNumbers[10];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 9:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[11];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[12];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 10:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[13];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[14];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 11:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[15];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[16];
 				if(peakHold)
 				{
 					if(tempValue > peakValues[1][4])

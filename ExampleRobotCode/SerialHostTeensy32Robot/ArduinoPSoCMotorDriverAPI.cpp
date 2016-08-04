@@ -104,7 +104,8 @@ uint8_t PSoCMD::begin()
 void PSoCMD::reset( void )
 {
 	//No reset currently handled
-	//writeRegister(BME280_RST_REG, 0xB6);
+	Wire.resetBus();
+	Wire.begin();
 	
 }
 
@@ -127,7 +128,7 @@ void PSoCMD::setDrive( uint8_t channel, uint8_t direction, uint8_t level )
 			direction ^= settings.invertA;
 			driveValue = (level * direction) + ((int8_t)level * ((int8_t)direction - 1)); //set to 1/2 drive if direction = 1 or -1/2 drive if direction = 0; (level * direction);
 			driveValue += 128;
-			writeRegister(PSoCMD_MA_DRIVE, driveValue);
+			writeRegister(SCMD_MA_DRIVE, driveValue);
 			break;
 		case 1:  //master
 			lastRD = level;
@@ -135,7 +136,7 @@ void PSoCMD::setDrive( uint8_t channel, uint8_t direction, uint8_t level )
 			direction ^= settings.invertB;
 			driveValue = (level * direction) + ((int8_t)level * ((int8_t)direction - 1)); //set to 1/2 drive if direction = 1 or -1/2 drive if direction = 0; (level * direction);
 			driveValue += 128;
-			writeRegister(PSoCMD_MB_DRIVE, driveValue);
+			writeRegister(SCMD_MB_DRIVE, driveValue);
 			break;
 		default:
 		break;
@@ -205,9 +206,11 @@ uint8_t PSoCMD::readRegister(uint8_t offset)
 		Wire.beginTransmission(settings.I2CAddress);
 		Wire.write(offset);
 		//Wire.endTransmission();
-		if(Wire.endTransmission(I2C_STOP,500))i2cFaults++;
+		if(Wire.endTransmission(I2C_STOP, 300)) i2cFaults++;
 		
-		if(Wire.requestFrom(settings.I2CAddress, numBytes, I2C_STOP,500))i2cFaults++;
+		Wire.beginTransmission(0x58);
+		//Wire.requestFrom(0x58, 1);
+		if(Wire.requestFrom(settings.I2CAddress, numBytes, I2C_STOP, 300) == 0)i2cFaults++;
 		while ( Wire.available() ) // slave may send less than requested
 		{
 			result = Wire.read(); // receive a byte as a proper uint8_t
@@ -250,7 +253,7 @@ void PSoCMD::writeRegister(uint8_t offset, uint8_t dataToWrite)
 		Wire.write(offset);
 		Wire.write(dataToWrite);
 		//Wire.endTransmission();
-		if(Wire.endTransmission(I2C_STOP,500))i2cFaults++;
+		if(Wire.endTransmission(I2C_STOP,500)) i2cFaults++;
 		break;
 
 	case SPI_MODE:
