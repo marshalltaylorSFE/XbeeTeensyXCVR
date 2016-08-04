@@ -45,14 +45,14 @@ uint8_t lastB2;
 #define INPUTPINB1 3
 #define INPUTPINB2 2
 
-#define DEBUG_TIME_SLOTS 20
+#define DEBUG_TIME_SLOTS 21
 volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
 volatile uint32_t remoteNumbers[20];
 
 
-uint8_t displayPage = 0;
+uint8_t displayPage = 20;
 uint8_t peakHold = 0;
 uint32_t peakValues[2][DEBUG_TIME_SLOTS];
 //////////////////////////
@@ -162,8 +162,8 @@ void setup()
   delay(500);
   oled.setFontType(0);  // Set the text to small (10 columns, 6 rows worth of characters).
 	oled.clear(PAGE);
-	oled.print("TX Itvl:\n");
-	oled.print("\nTX Dura:\n");
+	//oled.print("TX Itvl:\n");
+	//oled.print("\nTX Dura:\n");
 	oled.setCursor(26,40);
 	oled.print("Peak:");
 	oled.print(peakHold);
@@ -381,6 +381,8 @@ void loop()
 				case 11:
 					oled.print("FSt:\n");
 					oled.print("\nFSctr:\n");
+				break;
+				case 20:
 				break;
 				default:
 					oled.print("No pg: ");
@@ -843,6 +845,15 @@ void loop()
 				{
 					oled.print(tempValue);
 				}
+			break;
+			case 20:
+				oled.setCursor(0,0);
+				oled.print("         ");
+				oled.setCursor(0,16);
+				oled.print("         ");
+				oled.setCursor(0,32);
+				oled.print("         ");
+				oled.line( 32, 20, 32 + (((float)lastX1 - 128 )/ (9)), 20 - (((float)lastY1 - 128 ) / (9)) );
 			break;
 			default:
 			break;
