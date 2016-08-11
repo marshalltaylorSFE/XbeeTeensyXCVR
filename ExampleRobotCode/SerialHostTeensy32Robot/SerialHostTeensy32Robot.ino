@@ -35,7 +35,7 @@
 #define SCMD_MA_DRIVE        0x20
 #define SCMD_MB_DRIVE        0x21
 
-uint8_t nonLinerLUT[256] = {0,1,3,4,6,7,9,10,12,14,15,17,18,20,21,23,24,26,28,29,31,32,34,35,37,38,40,41,43,44,46,47,48,50,51,53,54,56,57,58,60,61,63,64,65,67,68,69,71,72,73,74,76,77,78,79,81,82,83,84,85,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,108,109,110,111,112,112,113,114,115,115,116,117,117,118,118,119,119,120,121,121,122,122,122,123,123,124,124,124,125,125,125,126,126,126,126,127,127,127,127,127,127,127,127,127,127,127,128,128,128,128,128,128,128,128,128,128,129,129,129,129,130,130,130,131,131,131,132,132,133,133,134,134,135,135,136,136,137,137,138,139,139,140,141,141,142,143,143,144,145,146,147,148,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,168,169,170,171,172,173,175,176,177,178,180,181,182,184,185,186,187,189,190,192,193,194,196,197,198,200,201,203,204,206,207,209,210,212,213,215,216,218,219,221,222,224,225,227,228,230,231,233,234,236,238,239,241,242,244,245,247,249,250,252,253,255,};
+uint8_t nonLinerLUT[256] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,112,113,114,115,116,117,118,119,120,121,122,123,124,125,127,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,144,145,146,147,148,149,150,151,152,153,154,155,156,158,159,160,161,162,163,164,165,166,167,168,169,170,172,173,174,175,176,177,178,179,180,181,182,183,184,186,187,188,189,190,191,192,193,194,195,196,197,198,199,201,202,203,204,205,206,207,208,209,210,211,212,213,215,216,217,218,219,220,221,222,223,224,225,226,227,229,230,231,232,233,234,235,236,237,238,239,240,241,243,244,245,246,247,248,249,250,251,252,253,254,255};
 
 TimeKeeper failSafeTimer;
 
@@ -69,6 +69,8 @@ char packetPending = 0;
 
 uint8_t failSafe = 0;
 uint16_t failSafeCounter = 0;
+
+uint8_t diagReadState = 0;
 
 uint8_t packet_ptr;
 
@@ -154,7 +156,7 @@ void setup()
 
 	//Start the motor driver
 	myMotorDriver.settings.commInterface = I2C_MODE;
-	myMotorDriver.settings.I2CAddress = 0x58;
+	myMotorDriver.settings.I2CAddress = 0x5A;
 	//myMotorDriver.settings.chipSelectPin = 10;
 	//myMotorDriver.settings.invertA = 1;
 	myMotorDriver.settings.invertB = 1;
@@ -164,7 +166,7 @@ void setup()
 
 void loop()
 {
-	//**Update the timers*************************//  
+	//**Update the timers*************************//
 	rxCheckTimer.update(usTicks);
 	remoteInputTimer.update(usTicks);
 	debugTimer.update(usTicks);
@@ -213,12 +215,12 @@ void loop()
 	}
 	
 	//**Read changes from the controller**********//  
-	if(remoteInputTimer.flagStatus() == PENDING)
+	if( remoteInputTimer.flagStatus() == PENDING)
 	{
 		debugLastTime[3] = debugStartTime[3];
 		debugStartTime[3] = usTicks;
 		failSafeTimer.mIncrement(1);
-		if(failSafeTimer.mGet() > 100) //Detected delay of communication
+		if( failSafeTimer.mGet() > 1000 ) //Detected delay of communication
 		{
 			//failed
 			if(failSafe == 0)
@@ -231,19 +233,15 @@ void loop()
 			myMotorDriver.setDrive(1,0,0);
 			lastDriveState = 7;
 		}
-		while(i2cFaults > i2cFaultsServiced)
+		while( i2cFaults > i2cFaultsServiced )
 		{
 			Serial.print("*");
 			i2cFaultsServiced = i2cFaults;
-			uint8_t * I2C_CTRL1_reg;
-			I2C_CTRL1_reg = (uint8_t *)0x40066002;
-			*I2C_CTRL1_reg = 0x00;
-			delay(10);
 			myMotorDriver.reset();
 			//delay(200);//Wait for fault to clear
-			//myMotorDriver.setDrive(0,0,0);
-			//myMotorDriver.setDrive(1,0,0);
-			//lastDriveState = 7;
+			myMotorDriver.setDrive(0,0,0);
+			myMotorDriver.setDrive(1,0,0);
+			lastDriveState = 7;
 			
 		}
 
@@ -441,6 +439,7 @@ void loop()
 		debugLastTime[1] = debugLastTime[3];
 		debugStartTime[1] = debugStartTime[3];
 		debugStopTime[1] = debugStopTime[3];
+
 	}
 
 	//**Debug timer*******************************//  
@@ -450,30 +449,39 @@ void loop()
 		debugStartTime[2] = usTicks;
 		digitalWrite( debugPin, digitalRead(debugPin) ^ 1 );
 		
-		SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_I2C_FAULTS);
-		Serial.print("SCMD_i2cFaults = ");
-		Serial.println(SCMD_i2cFaults);
-		SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_I2C_RD_ERR);
-		SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_I2C_WR_ERR);
-		SCMD_devID = myMotorDriver.readRegister(SCMD_ID);
-		Serial.print("SCMD_devID = ");
-		Serial.println(SCMD_devID);
-		SCMD_fSafeTime = myMotorDriver.readRegister(SCMD_FSAFE_TIME);
-		SCMD_fSafeFaults = myMotorDriver.readRegister(SCMD_FSAFE_FAULTS);
+		switch(diagReadState)
+		{
+			case 0:
+				SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_I2C_FAULTS);
+			break;
+			case 1:
+				SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_I2C_RD_ERR);
+			break;
+			case 2:
+				SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_I2C_WR_ERR);
+			break;
+			case 3:
+				SCMD_devID = myMotorDriver.readRegister(SCMD_ID);
+			break;
+			case 4:
+				SCMD_fSafeTime = myMotorDriver.readRegister(SCMD_FSAFE_TIME);
+			break;
+			case 5:
+				SCMD_fSafeFaults = myMotorDriver.readRegister(SCMD_FSAFE_FAULTS);
+			break;
+			default:
+			break;
+		}
+		diagReadState++;
+		if( diagReadState == 6 ) diagReadState = 0;
 		
-		//Serial.print("Reading failSafeCounter: ");
-		//Serial.print(failSafeCounter);
-		//Serial.println("");
-		//Serial.print("Reading i2cFaults: ");
-		//Serial.print(i2cFaults);
-		//Serial.println("");
-		
-		Serial.print("Reading lastX1: 0x");
+		//Print cartesian positions:
+		//Serial.print("Reading lastX1: 0x");
 		Serial.print(lastX1, HEX);
 		Serial.println("");
-		Serial.print("Reading lastY1: 0x");
-		Serial.print(lastY1, HEX);
-		Serial.println("");
+		//Serial.print("Reading lastY1: 0x");
+		//Serial.print(lastY1, HEX);
+		//Serial.println("");
 		//Serial.print("Reading lastX2: 0x");
 		//Serial.print(lastX2, HEX);
 		//Serial.println("");
@@ -488,44 +496,43 @@ void loop()
 		//Serial.println("");
 
 		
-		
-		Serial.print("lastR1: ");
-		Serial.print(lastR1);
-		Serial.println("");
-		Serial.print("lastT1: ");
-		Serial.print(lastT1);
-		Serial.println("");		
-
+		//Print polar stick calculation outputs:
+		//Serial.print("lastR1: ");
+		//Serial.print(lastR1);
+		//Serial.println("");
+		//Serial.print("lastT1: ");
+		//Serial.print(lastT1);
+		//Serial.println("");		
 		//Serial.print("lastDeg1: ");
 		//Serial.print( (lastT1 / 6.25) * 360 );
 		//Serial.println("");		
 
-		Serial.print("lastR2: ");
-		Serial.print(lastR2);
-		Serial.println("");
-		Serial.print("lastT2: ");
-		Serial.print(lastT2);
-		Serial.println("");		
-
+		//Serial.print("lastR2: ");
+		//Serial.print(lastR2);
+		//Serial.println("");
+		//Serial.print("lastT2: ");
+		//Serial.print(lastT2);
+		//Serial.println("");		
 		//Serial.print("lastDeg2: ");
 		//Serial.print( (lastT2 / 6.25) * 360 );
 		//Serial.println("");		
 
-		
-		Serial.print("LeftDrive: ");
-		Serial.print(lastLD);
-		Serial.println("");
-		Serial.print("RightDrive: ");
-		Serial.print(lastRD);
-		Serial.println("");		
-		Serial.print("last Drive State: ");
-		Serial.print(lastRD);
-		Serial.println("");	
-		
-		Serial.print("lastDriveState: ");
-		Serial.print(lastDriveState);
-		Serial.println("");	
+		//Print drive levels
+		//Serial.print("LeftDrive: ");
+		//Serial.print(lastLD);
+		//Serial.println("");
+		//Serial.print("RightDrive: ");
+		//Serial.print(lastRD);
+		//Serial.println("");		
+		//Serial.print("last Drive State: ");
+		//Serial.print(lastRD);
+		//Serial.println("");	
+		//
+		//Serial.print("lastDriveState: ");
+		//Serial.print(lastDriveState);
+		//Serial.println("");	
 
+		//print durations of timers
 		Serial.print("0 Itvl: ");
 		Serial.println(debugStartTime[0] - debugLastTime[0]);
 		Serial.print("0 Dura: ");
@@ -541,20 +548,49 @@ void loop()
 		Serial.println(debugStartTime[2] - debugLastTime[2]);
 		Serial.print("2 Dura: ");
 		Serial.println(debugStopTime[2] - debugStartTime[2]);
+
+		Serial.print("debug usTicks: ");
+		Serial.println(debugStartTime[2]);
 		
 		Serial.println("");
-		uint8_t * address;
-		for( uint32_t tempAddress = 0x40066000; tempAddress <= 0x4006600B; tempAddress++)
-		{
-			address = (uint8_t *)tempAddress;
-			Serial.print("Address 0x");
-			Serial.print((uint32_t)address, HEX);
-			Serial.print(" contains 0x");
-			Serial.println(*address, HEX);
-		}
+		
+		//Print teensy address space
+		//uint8_t * address;
+		//for( uint32_t tempAddress = 0x40066000; tempAddress <= 0x4006600B; tempAddress++)
+		//{
+		//	address = (uint8_t *)tempAddress;
+		//	Serial.print("Address 0x");
+		//	Serial.print((uint32_t)address, HEX);
+		//	Serial.print(" contains 0x");
+		//	Serial.println(*address, HEX);
+		//}
+        //
+		//Serial.println("");
+		
+		//Print I2C diagnostic stuff
+		Serial.print("failSafeCounter: ");
+		Serial.println(failSafeCounter);
 
-		Serial.println("");
+		Serial.print("i2cFaults ");
+		Serial.println(i2cFaults);
 
+		Serial.print("SCMD_i2cRdErr: ");
+		Serial.println(SCMD_i2cRdErr);
+
+		Serial.print("SCMD_i2cWrErr: ");
+		Serial.println(SCMD_i2cWrErr);
+		
+		Serial.print("SCMD_devID: ");
+		Serial.println(SCMD_devID);
+
+		Serial.print("SCMD_i2cFaults: ");
+		Serial.println(SCMD_i2cFaults);
+
+		Serial.print("SCMD_fSafeTime: ");
+		Serial.println(SCMD_fSafeTime);
+
+		Serial.print("SCMD_fSafeFaults: ");
+		Serial.println(SCMD_fSafeFaults);
 	}
 
 	
