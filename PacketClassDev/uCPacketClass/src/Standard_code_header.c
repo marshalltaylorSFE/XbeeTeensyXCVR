@@ -1,4 +1,5 @@
-
+//License information:
+//Haha!  You use this code.  Use it!
 
 /******************************************************************************
 <filename>
