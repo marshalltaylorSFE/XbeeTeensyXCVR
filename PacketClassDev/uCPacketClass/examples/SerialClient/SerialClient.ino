@@ -12,6 +12,7 @@
 //**********************************************************************//
 #include "HOS_char.h"
 #include <math.h>
+#include "uCPacketClass.h"
 #include "userPacketDefs.h"
 
 //Globals
@@ -32,12 +33,14 @@ float lastT2;
 uint8_t lastB1;
 uint8_t lastB2;
 
-#define INPUTPINX1 20
-#define INPUTPINY1 21
-#define INPUTPINX2 22
-#define INPUTPINY2 23
-#define INPUTPINB1 3
-#define INPUTPINB2 2
+#define leftButtonPin	 2
+#define rightButtonPin   3 
+#define upButtonPin      4
+#define downButtonPin    5
+#define startButtonPin   6 
+#define selectButtonPin  7
+#define aButtonPin       8
+#define bButtonPin       9
 
 #define LEDPIN 13
 #include "timerModule32.h"
@@ -62,18 +65,24 @@ robotClientPacket packetToHost;
 robotHostPacket packetFromHost;
 
 //**Serial Machine****************************//
-uCPacketMachine dataLinkHandler(REMOTELINKPORT);
+uCPacketUART dataLinkHandler(&REMOTELINKPORT, 64); //64 byte buffer
 
 void setup()
 {
   DEBUGSERIALPORT.begin(115200);
   REMOTELINKPORT.begin(115200);
   
-  dataLinkHandler.initialize();
+  //dataLinkHandler.initialize();
   
-  pinMode(LEDPIN, OUTPUT);
-  pinMode(INPUTPINB1, INPUT_PULLUP);
-  pinMode(INPUTPINB2, INPUT_PULLUP);
+  pinMode( LEDPIN, OUTPUT );
+  pinMode( leftButtonPin   , INPUT_PULLUP );
+  pinMode( rightButtonPin  , INPUT_PULLUP );
+  pinMode( upButtonPin     , INPUT_PULLUP );
+  pinMode( downButtonPin   , INPUT_PULLUP );
+  pinMode( startButtonPin  , INPUT_PULLUP );
+  pinMode( selectButtonPin , INPUT_PULLUP );
+  pinMode( aButtonPin      , INPUT_PULLUP );
+  pinMode( bButtonPin      , INPUT_PULLUP );
 
   // initialize IntervalTimer
   myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
@@ -99,9 +108,9 @@ void loop()
 	if(remoteInputTimer.flagStatus() == PENDING)
 	{
 		dataLinkHandler.flushInputBuffer();
-		if( dataLinkHandler.available() )
+		if( dataLinkHandler.available() == sizeof packetFromHost )
 		{
-			dataLinkHandler.getPacket( packetFromHost, sizeof packetFromHost );
+			dataLinkHandler.getPacket( (uint8_t *)&packetFromHost, sizeof packetFromHost );
 			//Now do operations on returned packet
 			//if( packetFromHost.someVar == blargle ) ...
 		}
@@ -125,12 +134,12 @@ void loop()
 		
 		uint8_t outputByte = leftButtonState | rightButtonState | upButtonState | downButtonState | startButtonState | selectButtonState | aButtonState | bButtonState;
 		
-		packetToHost.nintendoButtons = outputByte; // The payload
+		packetToHost.gamepadButtons = outputByte; // The payload
 
 		// If new, ship it!
 		if( tempStatus )
 		{
-			dataLinkHandler.send( packetToHost, sizeof packetToHost );
+			dataLinkHandler.sendPacket( (uint8_t *)&packetToHost, sizeof packetToHost );
 		}
 	}
 	//**Copy to make a new timer******************//  
@@ -144,22 +153,24 @@ void loop()
 		//User code
 		digitalWrite( LEDPIN, digitalRead( LEDPIN ) ^ 0x01 );
 		
+		uint8_t * index = (uint8_t *)&packetToHost;
 		DEBUGSERIALPORT.print("TX Packet Dump: 0x");
-		for( int i = 0; i < sizeof packetToHost; i++ )
+		for( int i = 0; i < (int)sizeof packetToHost; i++ )
 		{
 			DEBUGSERIALPORT.print("ADDR: 0x");
-			DEBUGSERIALPORT.println( packetToHost[?], HEX );
+			DEBUGSERIALPORT.println( *index++, HEX );
 		}
 
 		DEBUGSERIALPORT.print("Payload binary: ");
-		DEBUGSERIALPORT.print(dataLinkHandler.nintendoButtons, BIN);
+		DEBUGSERIALPORT.print(dataLinkHandler.gamepadButtons, BIN);
 		DEBUGSERIALPORT.println("");
-
+		
+		index = (uint8_t *)&packetFromHost;
 		DEBUGSERIALPORT.print("Last RX Packet Dump: 0x");
-		for( int i = 0; i < sizeof packetFromHost; i++ )
+		for( int i = 0; i < (int)sizeof packetFromHost; i++ )
 		{
 			DEBUGSERIALPORT.print("ADDR: 0x");
-			DEBUGSERIALPORT.println( packetFromHost[?], HEX );
+			DEBUGSERIALPORT.println( *index++, HEX );
 		}
 
 		DEBUGSERIALPORT.println("");
