@@ -5,19 +5,14 @@
 #define USERPACKETDEFS_H
 struct robotClientPacket
 {
-	char startSymbol;
-	uint8_t packetNumber;
-	uint8_t status;
+	uint8_t packetStatus;
 	uint8_t gamepadButtons;
-	char tail[2];
+	int16_t test;
 };
 
 struct robotHostPacket
 {
-	char startSymbol;
-	uint8_t packetNumber;
-	uint8_t status;
-	char tail[2];
+	uint8_t packetStatus;
 	
 };
 #endif

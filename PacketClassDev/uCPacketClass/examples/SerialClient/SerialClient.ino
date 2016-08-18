@@ -10,7 +10,15 @@
 //  Created:  March 14, 2016
 //
 //**********************************************************************//
-#include "HOS_char.h"
+
+//**UART #defines*****************************//
+#define DEBUGSERIALPORT Serial
+//#define REMOTELINKPORT Serial1
+#define REMOTELINKPORT Serial //For now, dump packets on-screen
+
+
+
+//#include "HOS_char.h"
 #include <math.h>
 #include "uCPacketClass.h"
 #include "userPacketDefs.h"
@@ -33,14 +41,14 @@ float lastT2;
 uint8_t lastB1;
 uint8_t lastB2;
 
-#define leftButtonPin	 2
-#define rightButtonPin   3 
-#define upButtonPin      4
-#define downButtonPin    5
-#define startButtonPin   6 
-#define selectButtonPin  7
-#define aButtonPin       8
-#define bButtonPin       9
+#define leftButtonPin	 8
+#define rightButtonPin   9 
+#define upButtonPin      6
+#define downButtonPin    7
+#define startButtonPin   2 
+#define selectButtonPin  3
+#define aButtonPin       5
+#define bButtonPin       4
 
 #define LEDPIN 13
 #include "timerModule32.h"
@@ -50,22 +58,20 @@ IntervalTimer myTimer; //Interrupt for Teensy
 
 //**32 bit timer classes *********************//  
 TimerClass32 debugTimer( 1000000 ); //1 seconds
-TimerClass32 serialSendTimer( 3000 ); //0.01 seconds
+TimerClass32 serialSendTimer( 500000 ); //0.500 seconds
 TimerClass32 remoteInputTimer( 10000 );
 
+//--tick variable for interrupt driven timer1
+elapsedMicros usTickInput = 0;
 uint32_t usTicks = 0;
 uint8_t usTicksLocked = 1; //start locked out
-
-//**UART #defines*****************************//
-#define DEBUGSERIALPORT Serial
-#define REMOTELINKPORT Serial1
 
 //**Packets***********************************//
 robotClientPacket packetToHost;
 robotHostPacket packetFromHost;
 
 //**Serial Machine****************************//
-uCPacketUART dataLinkHandler(&REMOTELINKPORT, 64); //64 byte buffer
+uCPacketUART dataLinkHandler((HardwareSerial*)&REMOTELINKPORT, 64); //64 byte buffers
 
 void setup()
 {
@@ -75,6 +81,7 @@ void setup()
   //dataLinkHandler.initialize();
   
   pinMode( LEDPIN, OUTPUT );
+  
   pinMode( leftButtonPin   , INPUT_PULLUP );
   pinMode( rightButtonPin  , INPUT_PULLUP );
   pinMode( upButtonPin     , INPUT_PULLUP );
@@ -85,14 +92,15 @@ void setup()
   pinMode( bButtonPin      , INPUT_PULLUP );
 
   // initialize IntervalTimer
-  myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
- 
+  //myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
+ packetToHost.test = 31042;
+
 }
 
 void loop()
 {
 	//Update the timers, but only once per interrupt
-	if( usTicksLocked == 0 )
+	//if( usTicksLocked == 0 )
 	{
 		//**Give the timers the current time**********//  
 		serialSendTimer.update(usTicks);
@@ -101,7 +109,7 @@ void loop()
 		
 		//Done?  Lock it back up
 		//I'm still not sure if this does anything
-		usTicksLocked = 1;
+		//usTicksLocked = 1;
 	}
 
 	//**Read the input packet*********************//  
@@ -154,44 +162,55 @@ void loop()
 		digitalWrite( LEDPIN, digitalRead( LEDPIN ) ^ 0x01 );
 		
 		uint8_t * index = (uint8_t *)&packetToHost;
-		DEBUGSERIALPORT.print("TX Packet Dump: 0x");
+		DEBUGSERIALPORT.println("TX Packet Dump:");
 		for( int i = 0; i < (int)sizeof packetToHost; i++ )
 		{
-			DEBUGSERIALPORT.print("ADDR: 0x");
+			DEBUGSERIALPORT.print("0x");
+			DEBUGSERIALPORT.print(i, HEX);
+			DEBUGSERIALPORT.print(": 0x");
 			DEBUGSERIALPORT.println( *index++, HEX );
 		}
-
-		DEBUGSERIALPORT.print("Payload binary: ");
-		DEBUGSERIALPORT.print(dataLinkHandler.gamepadButtons, BIN);
+		DEBUGSERIALPORT.println("");
+		DEBUGSERIALPORT.print("Payload in binary: b");
+		for(int i = 0; i < 8; i++)
+		{
+			if(((( packetToHost.gamepadButtons ) >> (7 - i) ) & 0x01 ) == 0)
+			{
+				DEBUGSERIALPORT.print("0");
+			}
+			else
+			{
+				DEBUGSERIALPORT.print("1");
+			}
+			
+		}
+		DEBUGSERIALPORT.println("");
 		DEBUGSERIALPORT.println("");
 		
 		index = (uint8_t *)&packetFromHost;
-		DEBUGSERIALPORT.print("Last RX Packet Dump: 0x");
+		DEBUGSERIALPORT.println("Last RX Packet Dump:");
 		for( int i = 0; i < (int)sizeof packetFromHost; i++ )
 		{
-			DEBUGSERIALPORT.print("ADDR: 0x");
+			DEBUGSERIALPORT.print("0x");
+			DEBUGSERIALPORT.print(i, HEX);
+			DEBUGSERIALPORT.print(": 0x");
 			DEBUGSERIALPORT.println( *index++, HEX );
 		}
 
 		DEBUGSERIALPORT.println("");
 		
 	}
+
+	//Do the ISR with the teensy built-in timer
+	if(usTickInput != usTicks)
+	{
+		uint32_t returnVar = 0;
+		if(usTickInput >= ( maxTimer + maxInterval ))
+		{
+		usTickInput = usTickInput - maxTimer;
+		
+		}
+		usTicks = usTickInput;
+		//usTicksMutex = 0;  //unlock
+	}
 }
-
-void serviceUS(void)
-{
-  uint32_t returnVar = 0;
-  if(usTicks >= ( maxTimer + maxInterval ))
-  {
-    returnVar = usTicks - maxTimer;
-
-  }
-  else
-  {
-    returnVar = usTicks + 1;
-  }
-  usTicks = returnVar;
-  usTicksLocked = 0;  //unlock
-}
-
-
