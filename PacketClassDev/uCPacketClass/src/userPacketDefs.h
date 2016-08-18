@@ -7,7 +7,6 @@ struct robotClientPacket
 {
 	uint8_t packetStatus;
 	uint8_t gamepadButtons;
-	int16_t test;
 };
 
 struct robotHostPacket

@@ -93,7 +93,6 @@ void setup()
 
   // initialize IntervalTimer
   //myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
- packetToHost.test = 31042;
 
 }
 

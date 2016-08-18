@@ -11,6 +11,7 @@ uCPacketUART::uCPacketUART( HardwareSerial * inSerial, uint16_t requestedBufferS
 	txBufferIndex = 0;
 	
 	txPacketInProgress = 0;
+	rxPacketPendingSize = 0;
 	
 	//Configure packets
 	startSymbol = '~';
@@ -35,12 +36,13 @@ uCPacketUART::~uCPacketUART( void )
 
 void uCPacketUART::flushInputBuffer( void )
 {
-	;
+
+
 };
 
 uint16_t uCPacketUART::available( void )
 {
-	return 0;
+	return rxPacketPendingSize;
 };
 
 void uCPacketUART::getPacket( uint8_t * packetVar, uint16_t sizeVar )

@@ -26,7 +26,7 @@ public:
 	uint8_t * txBuffer;
 	uint16_t rxBufferIndex;
 	uint16_t txBufferIndex;
-
+	uint16_t rxPacketPendingSize; // equals 0 for not pending
 	uint8_t txPacketInProgress;
 	
 	private:
