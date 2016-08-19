@@ -13,8 +13,8 @@
 
 //**UART #defines*****************************//
 #define DEBUGSERIALPORT Serial
-//#define REMOTELINKPORT Serial1
-#define REMOTELINKPORT Serial //For now, dump packets on-screen
+#define REMOTELINKPORT Serial1 //link port
+//#define REMOTELINKPORT Serial //For now, dump packets on-screen
 
 
 
@@ -58,8 +58,8 @@ IntervalTimer myTimer; //Interrupt for Teensy
 
 //**32 bit timer classes *********************//  
 TimerClass32 debugTimer( 1000000 ); //1 seconds
-TimerClass32 serialSendTimer( 500000 ); //0.500 seconds
-TimerClass32 remoteInputTimer( 10000 );
+TimerClass32 serialSendTimer( 50000 ); //0.050 seconds
+TimerClass32 remoteInputTimer( 3000 );
 
 //--tick variable for interrupt driven timer1
 elapsedMicros usTickInput = 0;
@@ -79,6 +79,8 @@ void setup()
   REMOTELINKPORT.begin(115200);
   
   //dataLinkHandler.initialize();
+
+  packetToHost.testHex = 0x12345678;
   
   pinMode( LEDPIN, OUTPUT );
   

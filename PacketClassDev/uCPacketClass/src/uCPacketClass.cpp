@@ -66,7 +66,7 @@ void uCPacketUART::burstReadInputBuffer( void )
 				{
 					//if the packet is being recorded and the last char is LF or CR, *do something here*
 					recordingPacket = 0;
-					rxPacketPendingSize = bytesAllocated;
+					rxPacketPendingSize = rxBufferIndex;
 					//end hit, get out
 					spinning = 0;
 				}
@@ -96,9 +96,15 @@ void uCPacketUART::burstReadInputBuffer( void )
 	}
 };
 
+void uCPacketUART::abandonRxPacket( void )
+{
+	//Dump a packet that has been flagged
+	rxPacketPendingSize = 0;
+};
+
 uint16_t uCPacketUART::available( void )
 {
-	return rxPacketPendingSize;
+	return ( rxPacketPendingSize >> 1 ); //Convert nybble count to byte size
 };
 
 void uCPacketUART::getPacket( uint8_t * packetVar, uint16_t sizeVar )
@@ -114,7 +120,7 @@ void uCPacketUART::getPacket( uint8_t * packetVar, uint16_t sizeVar )
 		{
 			tempByte = char2hex(rxBuffer[rxPointer++]) << 4;
 			tempByte |= char2hex(rxBuffer[rxPointer++]);
-			packetVar[rxPointer] = tempByte;
+			packetVar[inputPacketPointer] = tempByte;
 			inputPacketPointer++;
 		}
 		//discard it

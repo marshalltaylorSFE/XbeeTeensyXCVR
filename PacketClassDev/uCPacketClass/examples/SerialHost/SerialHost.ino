@@ -15,9 +15,14 @@
 
 //**UART #defines*****************************//
 #define DEBUGSERIALPORT Serial
-//#define REMOTELINKPORT Serial1
-#define REMOTELINKPORT Serial //For now, dump packets on-screen
+#define REMOTELINKPORT Serial2 //link port
+//#define REMOTELINKPORT Serial //For now, dump packets on-screen
 
+
+
+#include "ArduinoPSoCMotorDriverAPI.h"
+uint16_t i2cFaults = 0;
+PSoCMD myMotorDriver;
 
 
 //#include "HOS_char.h"
@@ -47,9 +52,14 @@ uint32_t packetNumber = 0;
 IntervalTimer myTimer; //Interrupt for Teensy
 
 //**32 bit timer classes *********************//  
-TimerClass32 debugTimer( 1000000 ); //1 seconds
-TimerClass32 serialSendTimer( 500000 ); //0.500 seconds
-TimerClass32 remoteInputTimer( 10000 );
+TimerClass32 debugTimer( 100000 ); //1 seconds
+TimerClass32 serialSendTimer( 50000 ); //0.050 seconds
+TimerClass32 remoteInputTimer( 3000 );
+TimerClass32 robotMotionTimer(10000);
+TimerClass32 motorUpdateTimer( 10000 );
+TimerClass32 debounceTimer(5000);
+TimerClass32 ledToggleTimer( 333000 );
+TimerClass32 ledToggleFastTimer( 100000 );
 
 //--tick variable for interrupt driven timer1
 elapsedMicros usTickInput = 0;
@@ -63,10 +73,25 @@ robotHostPacket packetToClient;
 //**Serial Machine****************************//
 uCPacketUART dataLinkHandler((HardwareSerial*)&REMOTELINKPORT, 64); //64 byte buffers
 
+//LEDs
+#include <Adafruit_NeoPixel.h>
+uint8_t wsPin = 6;
+Adafruit_NeoPixel indicators = Adafruit_NeoPixel(2, wsPin, NEO_GRB + NEO_KHZ800);
+
+//Control system defines
+uint8_t frontSwap = 0;
+
+//--Robot state machine
+#include "RobotMotion.h"
+RobotMotion myRobot;
+
+
 void setup()
 {
   DEBUGSERIALPORT.begin(115200);
-  REMOTELINKPORT.begin(115200);
+	delay(1000);
+	DEBUGSERIALPORT.println("Program Started");
+	REMOTELINKPORT.begin(115200);
   
   //dataLinkHandler.initialize();
   
@@ -75,6 +100,21 @@ void setup()
   // initialize IntervalTimer
   //myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
 
+  indicators.begin();
+  indicators.setPixelColor(0, 0xFF20AF);
+  indicators.setPixelColor(1, 0xFF20AF);
+  indicators.show(); // Initialize all pixels
+
+  //Ready the state machines
+  myRobot.init();
+  //Start the motor driver
+  myMotorDriver.settings.commInterface = I2C_MODE;
+  myMotorDriver.settings.I2CAddress = 0x5A;
+  //myMotorDriver.settings.chipSelectPin = 10;
+  //myMotorDriver.settings.invertA = 1;
+  myMotorDriver.settings.invertB = 1;
+  Serial.println(myMotorDriver.begin(), HEX);
+  
 }
 
 void loop()
@@ -85,6 +125,11 @@ void loop()
 		//**Give the timers the current time**********//  
 		serialSendTimer.update(usTicks);
 		remoteInputTimer.update(usTicks);
+		ledToggleTimer.update(usTicks);
+		ledToggleFastTimer.update(usTicks);
+		robotMotionTimer.update(usTicks);
+		motorUpdateTimer.update(usTicks);
+		debounceTimer.update(usTicks);
 		debugTimer.update(usTicks);
 		
 		//Done?  Lock it back up
@@ -95,12 +140,16 @@ void loop()
 	//**Read the input packet*********************//  
 	if(remoteInputTimer.flagStatus() == PENDING)
 	{
-		dataLinkHandler.burstReadInputBuffer();  //Reads to next 0x00
+		dataLinkHandler.burstReadInputBuffer();  //Reads to next packet end
 		if( dataLinkHandler.available() == sizeof packetFromClient )
 		{
 			dataLinkHandler.getPacket( (uint8_t *)&packetFromClient, sizeof packetFromClient );
 			//Now do operations on returned packet
 			//if( packetFromClient.someVar == blargle ) ...
+		}
+		else if( dataLinkHandler.available() != 0 ) //we have a wrong size packet
+		{
+			dataLinkHandler.abandonRxPacket();
 		}
 	}
 
@@ -121,7 +170,58 @@ void loop()
 	//{
 	//	//User code
 	//}
+	//**Debounce timer****************************//  
+	if(debounceTimer.flagStatus() == PENDING)
+	{
+		myRobot.timersMIncrement(5);
+	
+	}
+	//**Send commands timer***********************// 
+	if(motorUpdateTimer.flagStatus() == PENDING)
+	{
+		if( frontSwap )
+		{
+			indicators.setPixelColor(1, 0xFF0000);
+			indicators.setPixelColor(0, 0x00FF00);
+		}
+		else
+		{
+			indicators.setPixelColor(1, 0x00FF00);
+			indicators.setPixelColor(0, 0xFF0000);
+		}
+		indicators.show();
+		
+		//set both drive levels
 
+	}		
+	//**Process the panel and state machine***********//  
+	if(robotMotionTimer.flagStatus() == PENDING)
+	{
+		//Provide inputs
+		
+		//Tick the machine
+		myRobot.processMachine();
+		Serial.print(myRobot.velocity);
+		Serial.print(" ");
+		//Deal with outputs
+		if( myRobot.velocity > 0.1 )
+		{
+			myMotorDriver.setDrive(0, 0, myRobot.velocity * 255); //chan, dir, lev
+			myMotorDriver.setDrive(1, 0, myRobot.velocity * 255);
+		}
+		else if( myRobot.velocity < -0.1 )
+		{
+			myMotorDriver.setDrive(0, 1, myRobot.velocity * -255); //chan, dir, lev
+			myMotorDriver.setDrive(1, 1, myRobot.velocity * -255);
+		}
+		else
+		{
+			myMotorDriver.setDrive(0, 0, 0); //chan, dir, lev
+			myMotorDriver.setDrive(1, 0, 0);
+		}
+		frontSwap = myRobot.frontSwap;
+
+	}
 	if(debugTimer.flagStatus() == PENDING)
 	{
 		//User code
@@ -150,6 +250,9 @@ void loop()
 			}
 			
 		}
+		DEBUGSERIALPORT.println("");
+		DEBUGSERIALPORT.print("32 bit test word: 0x");
+		DEBUGSERIALPORT.println(packetFromClient.testHex, HEX);
 		DEBUGSERIALPORT.println("");
 		DEBUGSERIALPORT.println("");
 		
