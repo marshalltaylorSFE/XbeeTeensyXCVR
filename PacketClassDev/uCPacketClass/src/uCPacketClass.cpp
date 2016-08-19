@@ -5,6 +5,8 @@
 #include "uCPacketClass.h"
 #include "HOS_char.h"
 
+#define DEFAULT_RX_BURST_SIZE 3
+
 uCPacketUART::uCPacketUART( HardwareSerial * inSerial, uint16_t requestedBufferSize )
 {
 	rxBufferIndex = 0;
@@ -19,6 +21,8 @@ uCPacketUART::uCPacketUART( HardwareSerial * inSerial, uint16_t requestedBufferS
 	tail[1] = 0x0A;
 	tail[2] = 0x00;
   
+	recordingPacket = 0;
+	
 	//Save the size
 	bytesAllocated = requestedBufferSize;
 	rxBuffer = new uint8_t[bytesAllocated];
@@ -34,10 +38,62 @@ uCPacketUART::~uCPacketUART( void )
 	bytesAllocated = 0;
 };
 
-void uCPacketUART::flushInputBuffer( void )
+void uCPacketUART::burstReadInputBuffer( void )
 {
-
-
+	if( rxPacketPendingSize == 0 ) //the previous packet was dumped
+	//store characters from input
+	{
+		int spinning = 1;
+		while( spinning )
+		{
+			if (linkSerial->available() )
+			{
+				spinning++;
+				char lastchar = linkSerial->read();
+				//look for packet start (startSymbol)
+				if( lastchar == startSymbol )
+				{
+					rxBufferIndex = 0;
+					recordingPacket = 1;
+					//Fill packet with null, reset the pointer
+					//for( int i = 0; i < PACKET_LENGTH; i++ )
+					//{
+					//packet[i] = 0;
+					//}
+					//write the start char
+				}
+				else if((recordingPacket == 1) && ((lastchar == 0x0A) || (lastchar == 0x0D)) )
+				{
+					//if the packet is being recorded and the last char is LF or CR, *do something here*
+					recordingPacket = 0;
+					rxPacketPendingSize = bytesAllocated;
+					//end hit, get out
+					spinning = 0;
+				}
+				else if( ( rxBufferIndex < bytesAllocated ) && ( recordingPacket ) )//check for room in the packet, and that the start char has been seen
+				{
+					//put the char in the packet
+					rxBuffer[rxBufferIndex] = lastchar;
+					//advance the pointer
+					rxBufferIndex++;
+					//turn on LED
+				}
+				else
+				{
+					//dump the data
+					
+				}
+			}
+			else
+			{
+				spinning = 0;
+			}
+			if( spinning > DEFAULT_RX_BURST_SIZE )
+			{
+				spinning = 0;
+			}
+		}
+	}
 };
 
 uint16_t uCPacketUART::available( void )
@@ -47,7 +103,23 @@ uint16_t uCPacketUART::available( void )
 
 void uCPacketUART::getPacket( uint8_t * packetVar, uint16_t sizeVar )
 {
-	;
+	if( rxPacketPendingSize )
+	{
+		//There is one
+		int rxPointer = 0;
+		int inputPacketPointer = 0;
+		uint8_t tempByte;
+		//For each input byte, get two rx nibbles
+		while( inputPacketPointer < sizeVar )
+		{
+			tempByte = char2hex(rxBuffer[rxPointer++]) << 4;
+			tempByte |= char2hex(rxBuffer[rxPointer++]);
+			packetVar[rxPointer] = tempByte;
+			inputPacketPointer++;
+		}
+		//discard it
+		rxPacketPendingSize = 0;
+	}
 };
 
 uint8_t uCPacketUART::sendPacket( uint8_t * packetVar, uint16_t sizeVar )

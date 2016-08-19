@@ -13,7 +13,7 @@ public:
 //	void initialize( void );
 //	void write( uint8_t, uint8_t ); //address, value.
 //	uint8_t read( uint8_t );//address
-	void flushInputBuffer( void );
+	void burstReadInputBuffer( void );
 	uint16_t available( void ); //Returns size of packet available
 	void getPacket( uint8_t *, uint16_t ); //give address and size
 	uint8_t sendPacket( uint8_t *, uint16_t );// Write entire packet to port
@@ -28,7 +28,7 @@ public:
 	uint16_t txBufferIndex;
 	uint16_t rxPacketPendingSize; // equals 0 for not pending
 	uint8_t txPacketInProgress;
-	
+	uint8_t recordingPacket;
 	private:
 	HardwareSerial * linkSerial;
 	char startSymbol;

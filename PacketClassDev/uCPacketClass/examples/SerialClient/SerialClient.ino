@@ -114,7 +114,7 @@ void loop()
 	//**Read the input packet*********************//  
 	if(remoteInputTimer.flagStatus() == PENDING)
 	{
-		dataLinkHandler.flushInputBuffer();
+		dataLinkHandler.burstReadInputBuffer();
 		if( dataLinkHandler.available() == sizeof packetFromHost )
 		{
 			dataLinkHandler.getPacket( (uint8_t *)&packetFromHost, sizeof packetFromHost );
