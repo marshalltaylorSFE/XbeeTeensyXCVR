@@ -10,8 +10,8 @@ extern robotClientPacket packetFromClient;
 #define downPos 4
 #define selectPos 2
 #define startPos 3
-#define aPos 1
-#define bPos 0
+#define aPos 0
+#define bPos 1
 
 //---Button------------------------------------------------------
 RobotButton::RobotButton( void )

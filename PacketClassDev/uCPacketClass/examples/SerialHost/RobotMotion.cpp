@@ -7,7 +7,7 @@
 
 #define KNOBDELTADETECT 5  //5 units of 255 for knob change detect
 #define ACCEL_RATE 0.12
-#define DECEL_RATE 0.02
+#define DECEL_RATE 0.01
 #define BK_HOLDOFFMS 250
 #define FW_HOLDOFFMS 250
 
@@ -55,7 +55,7 @@ void RobotMotion::processMachine( void )
 void RobotMotion::tickStateMachine()
 {
 	//***** PROCESS THE LOGIC *****//
-	if( bButton.serviceRisingEdge() )
+	if( selectButton.serviceRisingEdge() )
 	{
 		frontSwap ^= 0x01;
 	}
@@ -69,7 +69,7 @@ void RobotMotion::tickStateMachine()
 	case PIdle:
 		if( rightButton.getState() )
 		{
-			if( selectButton.getState())
+			if( bButton.getState())
 			{
 				direction = 1;
 			}
@@ -81,7 +81,7 @@ void RobotMotion::tickStateMachine()
 		}
 		else if( leftButton.getState() )
 		{
-			if( selectButton.getState())
+			if( bButton.getState())
 			{
 				direction = -1;
 			}
@@ -133,12 +133,26 @@ void RobotMotion::tickStateMachine()
 		else if ( rightButton.getState() )
 		{
 			direction = 0.3;
-			nextState = PForward;
+			if( velocity > 0.8 )
+			{
+				nextState = PForward;
+			}
+			else
+			{
+				nextState = PIdle; //Velo too low,
+			}
 		}
 		else if ( leftButton.getState() )
 		{
 			direction = -0.3;
-			nextState = PForward;
+			if( velocity > 0.8 )
+			{
+				nextState = PForward;
+			}
+			else
+			{
+				nextState = PIdle; //Velo too low,
+			}
 		}
 		//else
 		{
@@ -219,7 +233,7 @@ void RobotMotion::tickStateMachine()
         break;
 	case PBackward:
 		direction = 0; // Default
-		lastFB = -1;
+		lastFB = -1;  //Comment out to forget last direction for r/l
 		if( aButton.getState() )
 		{
 			velocity = 1;
@@ -238,12 +252,26 @@ void RobotMotion::tickStateMachine()
 		else if ( rightButton.getState() )
 		{
 			direction = -0.3;
-			nextState = PBackward;
+			if( velocity > -0.8 )
+			{
+				nextState = PBackward;
+			}
+			else
+			{
+				nextState = PIdle; //Velo too low,
+			}
 		}
 		else if ( leftButton.getState() )
 		{
 			direction = 0.3;
-			nextState = PBackward;
+			if( velocity > -0.8 )
+			{
+				nextState = PBackward;
+			}
+			else
+			{
+				nextState = PIdle; //Velo too low,
+			}
 		}
 		//else
 		{
@@ -286,10 +314,10 @@ void RobotMotion::timersMIncrement( uint8_t inputValue )
 	rightButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
 	upButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
 	downButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
-	selectButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
+	bButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
 	startButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
 	aButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
-	bButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
+	selectButton.buttonDebounceTimeKeeper.mIncrement(inputValue);
 	bkupHoldTimeKeeper.mIncrement(inputValue);
 
 }

@@ -10,6 +10,7 @@
 //  Created:  March 14, 2016
 //
 //**********************************************************************//
+//#debug
 
 //Radio PAN ID: 0x1A0F
 
@@ -130,8 +131,9 @@ void loop()
 		robotMotionTimer.update(usTicks);
 		motorUpdateTimer.update(usTicks);
 		debounceTimer.update(usTicks);
+#ifdef debug
 		debugTimer.update(usTicks);
-		
+#endif		
 		//Done?  Lock it back up
 		//I'm still not sure if this does anything
 		//usTicksLocked = 1;
@@ -202,24 +204,90 @@ void loop()
 		//Tick the machine
 		myRobot.processMachine();
 		Serial.print(myRobot.velocity);
-		Serial.print(" ");
+		Serial.print("    ");
+		Serial.print(myRobot.direction);
+		Serial.print("    ");
 		//Deal with outputs
-		if( myRobot.velocity > 0.1 )
+		frontSwap = myRobot.frontSwap;
+		//  Convert outputs to positive only, with unit variable as 1 for forward, 0 for backwards
+		int16_t velocityVar = 0;
+		int8_t velocityUVect = 0;
+		float directionVar = 0;
+		int8_t directionUVect = 0;
+	
+		if( myRobot.velocity >= 0 )
 		{
-			myMotorDriver.setDrive(0, 0, myRobot.velocity * 255); //chan, dir, lev
-			myMotorDriver.setDrive(1, 0, myRobot.velocity * 255);
-		}
-		else if( myRobot.velocity < -0.1 )
-		{
-			myMotorDriver.setDrive(0, 1, myRobot.velocity * -255); //chan, dir, lev
-			myMotorDriver.setDrive(1, 1, myRobot.velocity * -255);
+			velocityVar = myRobot.velocity * 255;
+			velocityUVect = 1;
 		}
 		else
 		{
-			myMotorDriver.setDrive(0, 0, 0); //chan, dir, lev
-			myMotorDriver.setDrive(1, 0, 0);
+			velocityVar = myRobot.velocity * -255;
+			velocityUVect = 0;
 		}
-		frontSwap = myRobot.frontSwap;
+		
+		if( myRobot.direction >= 0 )
+		{
+			directionVar = myRobot.direction;
+			directionUVect = 1;
+		}
+		else
+		{
+			directionVar = myRobot.direction * -1;
+			directionUVect = -1;
+		}
+
+		//At this point, velovar should be 0 to 255, direction is 0 to 1 float
+		//Apply front back swap here and here only
+		//  Switch left right positions and drive polarities
+		if( frontSwap )
+		{
+			velocityUVect ^= 0x01;
+			if( directionUVect == 1 )
+			{
+				directionUVect = -1;
+			}
+			else
+			{
+				directionUVect = 1;
+			}
+		}
+
+		Serial.print(velocityVar);
+		Serial.print("    ");
+		Serial.print(directionVar);
+		Serial.print("    ");
+		Serial.print(velocityUVect);
+		Serial.print("    ");
+		Serial.print(directionUVect);
+		Serial.print("\n");
+		
+		// Apply direction scaling to correct motor
+		//if direction is +, call this right and decrease right motor
+		//But first check for spin in place
+		if( myRobot.direction == 1 )
+		{
+			//clockwise
+			myMotorDriver.setDrive(0, 0, 255);
+			myMotorDriver.setDrive(1, 1, 255);
+		}   
+		else if( myRobot.direction == -1 )
+		{
+			//counterclockwise
+			myMotorDriver.setDrive(0, 1, 255);
+			myMotorDriver.setDrive(1, 0, 255);
+		}
+		//Spin in place not detected, do the following
+		else if( directionUVect >= 0 )
+		{
+			myMotorDriver.setDrive(0, velocityUVect, velocityVar * (1 - directionVar) ); //chan, dir, lev
+			myMotorDriver.setDrive(1, velocityUVect, velocityVar);
+		}
+		else
+		{
+			myMotorDriver.setDrive(0, velocityUVect, velocityVar); //chan, dir, lev
+			myMotorDriver.setDrive(1, velocityUVect, velocityVar * (1 - directionVar) );
+		}
 
 	}
 	if(debugTimer.flagStatus() == PENDING)
