@@ -17,12 +17,11 @@ Repository contents
 -------------------
 
 * **ExampleRobotCode** -- Contains host and client sketches for actually driving a robot.
-* **PacketClassDev** -- Contains host and client sketches for development of the project.
+* **PacketTestingCode** -- Contains host and client sketches for development of the project.
 * **PaddleDesign** -- Graphics used to create the controller shape
 
-PacketClassDev Status (Protocol Library branch)
+PacketTestingCode Status
 -------------------
-THIS DATA NOT VALID:
 * Client sends (X,Y) data on both sticks, button data and calculates polar locally for the debug window
 * Host receives (X,Y) data but incorrectly calculates polar
 * TODO: establish reply data, send time
