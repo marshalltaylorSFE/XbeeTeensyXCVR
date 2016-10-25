@@ -19,17 +19,18 @@
 #define REMOTELINKPORT Serial2 //link port
 //#define REMOTELINKPORT Serial //For now, dump packets on-screen
 
-
-
-#include "ArduinoPSoCMotorDriverAPI.h"
-uint16_t i2cFaults = 0;
-PSoCMD myMotorDriver;
-
-
+#include "SCMD.h"
+#include "SCMD_config.h" //Contains #defines for common SCMD register names and values
+#include "Wire.h"
 //#include "HOS_char.h"
 #include <math.h>
 #include "uCPacketClass.h"
 #include "userPacketDefs.h"
+
+uint16_t i2cFaults = 0;
+
+//***** Create the Motor Driver object*****//
+SCMD myMotorDriver;
 
 //Globals
 uint32_t maxTimer = 60000000;
@@ -90,9 +91,11 @@ RobotMotion myRobot;
 void setup()
 {
   DEBUGSERIALPORT.begin(115200);
-	delay(1000);
-	DEBUGSERIALPORT.println("Program Started");
-	REMOTELINKPORT.begin(115200);
+  
+  delay(1000);
+  
+  DEBUGSERIALPORT.println("Program Started");
+  REMOTELINKPORT.begin(115200);
   
   //dataLinkHandler.initialize();
   
@@ -108,13 +111,26 @@ void setup()
 
   //Ready the state machines
   myRobot.init();
-  //Start the motor driver
+  
+  //***** Configure the Motor Driver's Settings *****//
+  
+  //  .commInter face can be I2C_MODE or SPI_MODE
   myMotorDriver.settings.commInterface = I2C_MODE;
-  myMotorDriver.settings.I2CAddress = 0x5A;
-  //myMotorDriver.settings.chipSelectPin = 10;
-  //myMotorDriver.settings.invertA = 1;
-  myMotorDriver.settings.invertB = 1;
-  Serial.println(myMotorDriver.begin(), HEX);
+  //myMotorDriver.settings.commInterface = SPI_MODE;
+  
+  //  set address if I2C configuration selected with the config jumpers
+  myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
+  //  set chip select if SPI selected with the config jumpers
+  myMotorDriver.settings.chipSelectPin = 10;
+
+  delay(1000);
+  
+  //  initialize the driver and enable the motor outputs
+  DEBUGSERIALPORT.print("Starting driver... ID = 0x");
+  DEBUGSERIALPORT.println(myMotorDriver.begin(), HEX);
+  DEBUGSERIALPORT.println();
+  
+  myMotorDriver.inversionMode( 1, 1 ); //Invert 'B' channel
   
 }
 

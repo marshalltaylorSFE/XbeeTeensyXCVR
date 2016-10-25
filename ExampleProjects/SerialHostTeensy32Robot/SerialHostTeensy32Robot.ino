@@ -12,28 +12,13 @@
 //**********************************************************************//
 #include <math.h>
 #include "HOS_char.h"
-#include "ArduinoPSoCMotorDriverAPI.h"
+
+#include "SCMD.h"
+#include "SCMD_config.h" //Contains #defines for common SCMD register names and values
 
 //**Timers and stuff**************************//
 #include "timerModule32.h"
 #include "timeKeeper.h"
-
-#define SCMD_STATUS          0x00
-#define SCMD_ID              0x01
-#define SCMD_ADDRESS         0x02
-#define SCMD_CONFIG_BITS     0x03
-#define SCMD_I2C_FAULTS      0x04
-#define SCMD_I2C_RD_ERR      0x05
-#define SCMD_I2C_WR_ERR      0x06
-#define SCMD_SPI_FAULTS      0x07
-#define SCMD_UART_FAULTS     0x08
-#define SCMD_UPORT_TIME	     0x09
-
-#define SCMD_FSAFE_TIME      0x18
-#define SCMD_FSAFE_FAULTS    0x19
-
-#define SCMD_MA_DRIVE        0x20
-#define SCMD_MB_DRIVE        0x21
 
 uint8_t nonLinerLUT[256] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,112,113,114,115,116,117,118,119,120,121,122,123,124,125,127,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,144,145,146,147,148,149,150,151,152,153,154,155,156,158,159,160,161,162,163,164,165,166,167,168,169,170,172,173,174,175,176,177,178,179,180,181,182,183,184,186,187,188,189,190,191,192,193,194,195,196,197,198,199,201,202,203,204,205,206,207,208,209,210,211,212,213,215,216,217,218,219,220,221,222,223,224,225,226,227,229,230,231,232,233,234,235,236,237,238,239,240,241,243,244,245,246,247,248,249,250,251,252,253,254,255};
 
@@ -50,7 +35,6 @@ uint16_t i2cFaults = 0;
 uint16_t i2cFaultsServiced = 0; //last serviced fault
 
 IntervalTimer myTimer; //ISR for Teensy
-
 
 //Other timers
 TimerClass32 rxCheckTimer( 150 );
@@ -110,7 +94,8 @@ volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStartTime[DEBUG_TIME_SLOTS];
 volatile uint32_t debugStopTime[DEBUG_TIME_SLOTS];
 
-PSoCMD myMotorDriver;
+//***** Create the Motor Driver object*****//
+SCMD myMotorDriver;
 
 void setup()
 {
@@ -154,13 +139,25 @@ void setup()
 	// initialize IntervalTimer
 	myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
 
-	//Start the motor driver
+	//***** Configure the Motor Driver's Settings *****//
+  
+	//  .commInter face can be I2C_MODE or SPI_MODE
 	myMotorDriver.settings.commInterface = I2C_MODE;
-	myMotorDriver.settings.I2CAddress = 0x5A;
-	//myMotorDriver.settings.chipSelectPin = 10;
-	//myMotorDriver.settings.invertA = 1;
-	myMotorDriver.settings.invertB = 1;
+	//myMotorDriver.settings.commInterface = SPI_MODE;
+	
+	//  set address if I2C configuration selected with the config jumpers
+	myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
+	//  set chip select if SPI selected with the config jumpers
+	myMotorDriver.settings.chipSelectPin = 10;
+	
+	delay(1000);
+	
+	//  initialize the driver and enable the motor outputs
+	Serial.print("Starting driver... ID = 0x");
 	Serial.println(myMotorDriver.begin(), HEX);
+	Serial.println();
+	
+	myMotorDriver.inversionMode( 1, 1 ); //Invert 'B' channel
 
 }
 
@@ -452,13 +449,13 @@ void loop()
 		switch(diagReadState)
 		{
 			case 0:
-				SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_I2C_FAULTS);
+				SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_MST_E_ERR);
 			break;
 			case 1:
-				SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_I2C_RD_ERR);
+				SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_E_I2C_RD_ERR);
 			break;
 			case 2:
-				SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_I2C_WR_ERR);
+				SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_E_I2C_WR_ERR);
 			break;
 			case 3:
 				SCMD_devID = myMotorDriver.readRegister(SCMD_ID);

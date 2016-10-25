@@ -1,4 +1,4 @@
-# XbeeTeensyXCVR
+# uCPacketClass
 
 This arduino library is used to packetize structures and operate the serial port.
 
@@ -46,11 +46,10 @@ Both sending and receiving parties should be using the same structure definition
 * 8/17/2016:
   * The client now sends its data as asciized nybles.
   * The start symbol and tail are now added by UCPacketUART and not exposed to the user
-  * The host currently comppiles and reports its packet dumps.
+  * The host currently compiles and reports its packet dumps.
 * 8/18/2016:
   * Reading parser is now written and compiles but has not been tested on actual hardware
   * Neither example has been tested.
 * 8/21/2016:
-  * Tested examples and created working example that uses 
-This library has two examples, one as a serial host and the other, the client.  Think of it as the client sends raw control input to the host, which is a continous being.
+  * Created and Tested examples.  This library has two examples, one as a serial host and the other, the client.  Think of it as the client sends raw control input to the host, which is a continous being.
 
