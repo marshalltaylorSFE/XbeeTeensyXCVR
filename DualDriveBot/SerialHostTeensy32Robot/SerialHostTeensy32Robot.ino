@@ -13,7 +13,7 @@
 #include <math.h>
 #include "HOS_char.h"
 
-#include "SCMD.h"
+#include "SCMD.h" //Use #define USE_ALT_I2C in this file during compilation!!!!!!!!
 #include "SCMD_config.h" //Contains #defines for common SCMD register names and values
 
 //**Timers and stuff**************************//
@@ -31,7 +31,6 @@ uint8_t debugPin = 13;
 uint32_t maxTimer = 60000000;
 uint32_t maxInterval = 2000000;
 
-uint16_t i2cFaults = 0;
 uint16_t i2cFaultsServiced = 0; //last serviced fault
 
 IntervalTimer myTimer; //ISR for Teensy
@@ -81,13 +80,7 @@ float lastLD;
 float lastRD;
 uint8_t lastDriveState;
 
-uint8_t SCMD_i2cFaults = 0;
-uint8_t SCMD_i2cRdErr = 0;
-uint8_t SCMD_i2cWrErr = 0;
-uint8_t SCMD_devID = 0;
-uint8_t SCMD_fSafeTime = 0;
-uint8_t SCMD_fSafeFaults = 0;
-
+SCMDDiagnostics myRobotDiagnostics;
 
 #define DEBUG_TIME_SLOTS 5
 volatile uint32_t debugLastTime[DEBUG_TIME_SLOTS];
@@ -140,17 +133,23 @@ void setup()
 	myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
 
 	//***** Configure the Motor Driver's Settings *****//
-  
-	//  .commInter face can be I2C_MODE or SPI_MODE
-	myMotorDriver.settings.commInterface = I2C_MODE;
-	//myMotorDriver.settings.commInterface = SPI_MODE;
+    myMotorDriver.settings.commInterface = I2C_MODE;
+    myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
+
+	//  initialize the driver and enable the motor outputs
+	uint8_t tempReturnValue = myMotorDriver.begin();
+	while ( tempReturnValue != 0xA9 )
+	{
+		Serial.print( "ID mismatch, read as 0x" );
+		Serial.println( tempReturnValue, HEX );
+		delay(500);
+		tempReturnValue = myMotorDriver.begin();
+	}
+	Serial.println( "ID matches 0xA9" );
 	
-	//  set address if I2C configuration selected with the config jumpers
-	myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
-	//  set chip select if SPI selected with the config jumpers
-	myMotorDriver.settings.chipSelectPin = 10;
-	
-	delay(1000);
+	Serial.print("Waiting for enumeration...");
+	while ( myMotorDriver.ready() == false );
+	Serial.println("Done.");
 	
 	//  initialize the driver and enable the motor outputs
 	Serial.print("Starting driver... ID = 0x");
@@ -158,6 +157,10 @@ void setup()
 	Serial.println();
 	
 	myMotorDriver.inversionMode( 1, 1 ); //Invert 'B' channel
+	while(myMotorDriver.busy());
+	
+	myMotorDriver.enable(); //enable outputs
+	while(myMotorDriver.busy());
 
 }
 
@@ -230,10 +233,10 @@ void loop()
 			myMotorDriver.setDrive(1,0,0);
 			lastDriveState = 7;
 		}
-		while( i2cFaults > i2cFaultsServiced )
+		while( myMotorDriver.i2cFaults > i2cFaultsServiced )
 		{
 			Serial.print("*");
-			i2cFaultsServiced = i2cFaults;
+			i2cFaultsServiced = myMotorDriver.i2cFaults;
 			myMotorDriver.reset();
 			//delay(200);//Wait for fault to clear
 			myMotorDriver.setDrive(0,0,0);
@@ -370,30 +373,37 @@ void loop()
 			}
 			if(lastPacketNumber == 10)
 			{
-				tempInterval = failSafeCounter;
+				tempInterval = myRobotDiagnostics.U_I2C_RD_ERR;
 				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
-				tempDuration = i2cFaults;
+				tempDuration = myRobotDiagnostics.U_I2C_WR_ERR;
 				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
 			if(lastPacketNumber == 11)
 			{
-				tempInterval = SCMD_i2cRdErr;
+				tempInterval = myRobotDiagnostics.U_BUF_DUMPED;
 				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
-				tempDuration = SCMD_i2cWrErr;
+				tempDuration = myRobotDiagnostics.LOOP_TIME;
 				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
 			if(lastPacketNumber == 12)
 			{
-				tempInterval = SCMD_devID;
+				tempInterval = myRobotDiagnostics.MST_E_ERR;
 				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
-				tempDuration = SCMD_i2cFaults;
+				tempDuration = myRobotDiagnostics.FSAFE_FAULTS;
 				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
 			if(lastPacketNumber == 13)
 			{
-				tempInterval = SCMD_fSafeTime;
+				tempInterval = myRobotDiagnostics.REG_OOR_CNT;
 				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
-				tempDuration = SCMD_fSafeFaults;
+				tempDuration = myRobotDiagnostics.REG_RO_WRITE_CNT;
+				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
+			}
+			if(lastPacketNumber == 14)
+			{
+				tempInterval = myMotorDriver.i2cFaults;
+				if(tempInterval > 0xFFFF) tempInterval = 0xFFFF;
+				tempDuration = myMotorDriver.readRegister(SCMD_ID);
 				if(tempDuration > 0xFFFF) tempDuration = 0xFFFF;
 			}
 
@@ -449,28 +459,34 @@ void loop()
 		switch(diagReadState)
 		{
 			case 0:
-				SCMD_i2cFaults = myMotorDriver.readRegister(SCMD_MST_E_ERR);
+				myRobotDiagnostics.U_I2C_RD_ERR = myMotorDriver.readRegister(SCMD_U_I2C_RD_ERR);
 			break;
 			case 1:
-				SCMD_i2cRdErr = myMotorDriver.readRegister(SCMD_E_I2C_RD_ERR);
+				myRobotDiagnostics.U_I2C_WR_ERR = myMotorDriver.readRegister(SCMD_U_I2C_WR_ERR);
 			break;
 			case 2:
-				SCMD_i2cWrErr = myMotorDriver.readRegister(SCMD_E_I2C_WR_ERR);
+				myRobotDiagnostics.U_BUF_DUMPED = myMotorDriver.readRegister(SCMD_U_BUF_DUMPED);
 			break;
 			case 3:
-				SCMD_devID = myMotorDriver.readRegister(SCMD_ID);
+				myRobotDiagnostics.LOOP_TIME = myMotorDriver.readRegister(SCMD_LOOP_TIME);
 			break;
 			case 4:
-				SCMD_fSafeTime = myMotorDriver.readRegister(SCMD_FSAFE_TIME);
+				myRobotDiagnostics.MST_E_ERR = myMotorDriver.readRegister(SCMD_MST_E_ERR);
 			break;
 			case 5:
-				SCMD_fSafeFaults = myMotorDriver.readRegister(SCMD_FSAFE_FAULTS);
+				myRobotDiagnostics.FSAFE_FAULTS = myMotorDriver.readRegister(SCMD_FSAFE_FAULTS);
+			break;
+			case 6:
+				myRobotDiagnostics.REG_OOR_CNT = myMotorDriver.readRegister(SCMD_REG_OOR_CNT);
+			break;
+			case 7:
+				myRobotDiagnostics.REG_RO_WRITE_CNT = myMotorDriver.readRegister(SCMD_REG_RO_WRITE_CNT);
 			break;
 			default:
 			break;
 		}
 		diagReadState++;
-		if( diagReadState == 6 ) diagReadState = 0;
+		if( diagReadState == 8 ) diagReadState = 0;
 		
 		//Print cartesian positions:
 		//Serial.print("Reading lastX1: 0x");
@@ -565,44 +581,34 @@ void loop()
 		//Serial.println("");
 		
 		//Print I2C diagnostic stuff
-		Serial.print("failSafeCounter: ");
-		Serial.println(failSafeCounter);
+		Serial.print("U_I2C_RD_ERR: ");
+		Serial.println(myRobotDiagnostics.U_I2C_RD_ERR);
 
-		Serial.print("i2cFaults ");
-		Serial.println(i2cFaults);
+		Serial.print("U_I2C_WR_ERR ");
+		Serial.println(myRobotDiagnostics.U_I2C_WR_ERR);
 
-		Serial.print("SCMD_i2cRdErr: ");
-		Serial.println(SCMD_i2cRdErr);
+		Serial.print("U_BUF_DUMPED: ");
+		Serial.println(myRobotDiagnostics.U_BUF_DUMPED);
 
-		Serial.print("SCMD_i2cWrErr: ");
-		Serial.println(SCMD_i2cWrErr);
+		Serial.print("LOOP_TIME: ");
+		Serial.println(myRobotDiagnostics.LOOP_TIME);
 		
-		Serial.print("SCMD_devID: ");
-		Serial.println(SCMD_devID);
+		Serial.print("MST_E_ERR: ");
+		Serial.println(myRobotDiagnostics.MST_E_ERR);
 
-		Serial.print("SCMD_i2cFaults: ");
-		Serial.println(SCMD_i2cFaults);
+		Serial.print("FSAFE_FAULTS: ");
+		Serial.println(myRobotDiagnostics.FSAFE_FAULTS);
 
-		Serial.print("SCMD_fSafeTime: ");
-		Serial.println(SCMD_fSafeTime);
+		Serial.print("REG_OOR_CNT: ");
+		Serial.println(myRobotDiagnostics.REG_OOR_CNT);
 
-		Serial.print("SCMD_fSafeFaults: ");
-		Serial.println(SCMD_fSafeFaults);
+		Serial.print("REG_RO_WRITE_CNT: ");
+		Serial.println(myRobotDiagnostics.REG_RO_WRITE_CNT);
+
+		Serial.print("myMotorDriver.i2cFaults: ");
+		Serial.println(myMotorDriver.i2cFaults);
+
 	}
-
-	
-	////Do the ISR with the teensy built-in timer --
-	////  Update the usTicks from usTickInput, alwasy keepin
-	//if(usTickInput != usTicks)
-	//{
-	//	if(usTickInput >= ( maxTimer + maxInterval ))
-	//	{
-	//	usTickInput = usTickInput - maxTimer;
-	//	
-	//	}
-	//	usTicks = usTickInput;
-	//	usTicksLocked = 0;  //unlock
-	//}
 }
 
 void serviceUS(void)

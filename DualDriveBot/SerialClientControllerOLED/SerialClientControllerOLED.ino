@@ -258,6 +258,11 @@ void loop()
 				remoteNumbers[15] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
 				remoteNumbers[16] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
 			}
+			if(lastPacketNumber == 14)
+			{
+				remoteNumbers[17] = (uint16_t)char2hex(rxPacket[10]) | ((uint16_t)char2hex(rxPacket[9]) << 4) | ((uint16_t)char2hex(rxPacket[8]) << 8) | ((uint16_t)char2hex(rxPacket[7]) << 12);
+				remoteNumbers[18] = (uint16_t)char2hex(rxPacket[14]) | ((uint16_t)char2hex(rxPacket[13]) << 4) | ((uint16_t)char2hex(rxPacket[12]) << 8) | ((uint16_t)char2hex(rxPacket[11]) << 12);
+			}
 
 		}
 
@@ -366,21 +371,25 @@ void loop()
 					oled.print("R2 Itvl:\n");
 					oled.print("\nR2 Dura:\n");
 				break;
-				case 8:
-					oled.print("FSAFE:\n");
-					oled.print("\nI2C FLT:\n");
-				break;
-				case 9:
+				case 8: //Remote packet 10
 					oled.print("I2C RdE:\n");
 					oled.print("\nI2C WrE:\n");
 				break;
+				case 9:
+					oled.print("DUMPED:\n");
+					oled.print("\nLoop T:\n");
+				break;
 				case 10:
-					oled.print("DEVID:\n");
-					oled.print("\nI2FLTs:\n");
+					oled.print("E_ERR:\n");
+					oled.print("\nFSAFE:\n");
 				break;
 				case 11:
-					oled.print("FSt:\n");
-					oled.print("\nFSctr:\n");
+					oled.print("OOR:\n");
+					oled.print("\nRO Wri:\n");
+				break;
+				case 12:
+					oled.print("I2C flt:\n");
+					oled.print("\nID:\n");
 				break;
 				case 20:
 				break;
@@ -829,6 +838,45 @@ void loop()
 				}
 				oled.setCursor(0,24);
 				tempValue = remoteNumbers[16];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[1][4])
+					{
+						peakValues[1][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[1][4]);
+					}
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+			break;
+			case 12:
+				oled.setCursor(0,8);
+				tempValue = remoteNumbers[17];
+				if(peakHold)
+				{
+					if(tempValue > peakValues[0][4])
+					{
+						peakValues[0][4] = tempValue;
+						oled.print(tempValue);
+					}
+					else
+					{
+						oled.print(peakValues[0][4]);
+					}
+
+				}
+				else
+				{
+					oled.print(tempValue);
+				}
+				oled.setCursor(0,24);
+				tempValue = remoteNumbers[18];
 				if(peakHold)
 				{
 					if(tempValue > peakValues[1][4])

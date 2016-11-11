@@ -90,48 +90,59 @@ RobotMotion myRobot;
 
 void setup()
 {
-  DEBUGSERIALPORT.begin(115200);
-  
-  delay(1000);
-  
-  DEBUGSERIALPORT.println("Program Started");
-  REMOTELINKPORT.begin(115200);
-  
-  //dataLinkHandler.initialize();
-  
-  pinMode( LEDPIN, OUTPUT );
-  
-  // initialize IntervalTimer
-  //myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
+	DEBUGSERIALPORT.begin(115200);
 
-  indicators.begin();
-  indicators.setPixelColor(0, 0xFF20AF);
-  indicators.setPixelColor(1, 0xFF20AF);
-  indicators.show(); // Initialize all pixels
+	delay(1000);
 
-  //Ready the state machines
-  myRobot.init();
-  
-  //***** Configure the Motor Driver's Settings *****//
-  
-  //  .commInter face can be I2C_MODE or SPI_MODE
-  myMotorDriver.settings.commInterface = I2C_MODE;
-  //myMotorDriver.settings.commInterface = SPI_MODE;
-  
-  //  set address if I2C configuration selected with the config jumpers
-  myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
-  //  set chip select if SPI selected with the config jumpers
-  myMotorDriver.settings.chipSelectPin = 10;
+	DEBUGSERIALPORT.println("Program Started");
+	REMOTELINKPORT.begin(115200);
 
-  delay(1000);
-  
-  //  initialize the driver and enable the motor outputs
-  DEBUGSERIALPORT.print("Starting driver... ID = 0x");
-  DEBUGSERIALPORT.println(myMotorDriver.begin(), HEX);
-  DEBUGSERIALPORT.println();
-  
-  myMotorDriver.inversionMode( 1, 1 ); //Invert 'B' channel
-  
+	//dataLinkHandler.initialize();
+
+	pinMode( LEDPIN, OUTPUT );
+
+	// initialize IntervalTimer
+	//myTimer.begin(serviceUS, 1);  // serviceMS to run every 0.000001 seconds
+
+	indicators.begin();
+	indicators.setPixelColor(0, 0xFF20AF);
+	indicators.setPixelColor(1, 0xFF20AF);
+	indicators.show(); // Initialize all pixels
+
+	//Ready the state machines
+	myRobot.init();
+
+	//***** Configure the Motor Driver's Settings *****//
+	myMotorDriver.settings.commInterface = I2C_MODE;
+	myMotorDriver.settings.I2CAddress = 0x5A; //config pattern "0101" on board for address 0x5A
+
+	//  initialize the driver and enable the motor outputs
+	uint8_t tempReturnValue = myMotorDriver.begin();
+	while ( tempReturnValue != 0xA9 )
+	{
+		Serial.print( "ID mismatch, read as 0x" );
+		Serial.println( tempReturnValue, HEX );
+		delay(500);
+		tempReturnValue = myMotorDriver.begin();
+	}
+	Serial.println( "ID matches 0xA9" );
+	
+	Serial.print("Waiting for enumeration...");
+	while ( myMotorDriver.ready() == false );
+	Serial.println("Done.");
+	
+	//  initialize the driver and enable the motor outputs
+	Serial.print("Starting driver... ID = 0x");
+	Serial.println(myMotorDriver.begin(), HEX);
+	Serial.println();
+	
+	myMotorDriver.inversionMode( 1, 1 ); //Invert 'B' channel
+	while(myMotorDriver.busy());
+	
+	myMotorDriver.enable(); //enable outputs
+	while(myMotorDriver.busy());
+
+
 }
 
 void loop()
@@ -173,7 +184,7 @@ void loop()
 
 	if(serialSendTimer.flagStatus() == PENDING)
 	{
-	//Check for new data
+		//Check for new data
 		uint8_t tempStatus = 0;
 		tempStatus = 1; //This forces packet send every time.  Use to block tx when necessary.
 
@@ -192,7 +203,7 @@ void loop()
 	if(debounceTimer.flagStatus() == PENDING)
 	{
 		myRobot.timersMIncrement(5);
-	
+		
 	}
 	//**Send commands timer***********************// 
 	if(motorUpdateTimer.flagStatus() == PENDING)
@@ -230,7 +241,7 @@ void loop()
 		int8_t velocityUVect = 0;
 		float directionVar = 0;
 		int8_t directionUVect = 0;
-	
+		
 		if( myRobot.velocity >= 0 )
 		{
 			velocityVar = myRobot.velocity * 255;
@@ -360,8 +371,8 @@ void loop()
 		uint32_t returnVar = 0;
 		if(usTickInput >= ( maxTimer + maxInterval ))
 		{
-		usTickInput = usTickInput - maxTimer;
-		
+			usTickInput = usTickInput - maxTimer;
+			
 		}
 		usTicks = usTickInput;
 		//usTicksMutex = 0;  //unlock
