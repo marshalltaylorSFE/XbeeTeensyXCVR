@@ -2,6 +2,12 @@
 
 This repository contains a library and example code for building XBee wireless links between two entities.
 
+[![alt text](https://raw.githubusercontent.com/marshalltaylorSFE/XbeeTeensyXCVR/master/HamburgerBot/HamburgerBotPicture.jpg)](https://raw.githubusercontent.com/marshalltaylorSFE/XbeeTeensyXCVR/master/HamburgerBot/HamburgerBotPicture.jpg)
+*The hamburger bot*
+
+[![alt text](https://raw.githubusercontent.com/marshalltaylorSFE/XbeeTeensyXCVR/master/DualDriveBot/DualDrivePicture.jpg)](https://raw.githubusercontent.com/marshalltaylorSFE/XbeeTeensyXCVR/master/DualDriveBot/DualDrivePicture.jpg)
+*The dual drive robot*
+
 ### Repository contents
 
 * **Documentation** -- Mostly spreadsheets for keeping track of program data and calculations
